@@ -34,7 +34,7 @@ java {
 
 application {
     // Define the main class for the application.
-    mainClass = 'leiriposti.App'
+    mainClass = 'tel.kontra.leiriposti.App'
 }
 
 tasks.named('test') {
