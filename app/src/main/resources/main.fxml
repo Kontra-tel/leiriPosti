@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.ToolBar?>
+<?import javafx.scene.layout.BorderPane?>
+
+
+<BorderPane fx:controller="tel.kontra.leiriposti.controller.MainGuiController" maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="400.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1">
+   <top>
+      <ToolBar prefHeight="20.0" prefWidth="600.0" BorderPane.alignment="CENTER">
+         <items>
+            <Button mnemonicParsing="false" onAction="#onSettings" text="Settings" />
+            <Button layoutX="65.0" layoutY="13.0" mnemonicParsing="false" onAction="#onInfo" text="Info" />
+         </items>
+      </ToolBar>
+   </top>
+   <center>
+      <ListView prefHeight="63.0" prefWidth="600.0" BorderPane.alignment="CENTER" />
+   </center>
+</BorderPane>
