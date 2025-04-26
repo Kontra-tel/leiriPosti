@@ -41,6 +41,16 @@ public class GoogleAuth {
     private static final List<String> SCOPES = 
         Collections.singletonList(SheetsScopes.SPREADSHEETS_READONLY);
 
+    /**
+     * Returns an authorized Credential object.
+     * This method loads the client secrets from the credentials.json file,
+     * builds the authorization flow, and triggers the user authorization request.
+     * 
+     * @param HTTP_TRANSPORT
+     * @return Credential object
+     * @throws IOException
+     * @throws GeneralSecurityException
+     */
     public static Credential getCredentials(final NetHttpTransport HTTP_TRANSPORT) 
         throws IOException, GeneralSecurityException {
         
