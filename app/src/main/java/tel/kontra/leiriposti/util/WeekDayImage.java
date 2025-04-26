@@ -1,4 +1,4 @@
-package tel.kontra.leiriposti.model;
+package tel.kontra.leiriposti.util;
 
 import java.awt.Image;
 import java.io.IOException;
