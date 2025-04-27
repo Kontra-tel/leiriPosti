@@ -5,6 +5,10 @@ import java.awt.print.PrinterJob;
 
 import javax.print.PrintService;
 import javax.print.attribute.Attribute;
+import javax.print.attribute.HashPrintRequestAttributeSet;
+import javax.print.attribute.PrintRequestAttributeSet;
+import javax.print.attribute.standard.Copies;
+import javax.print.attribute.standard.Sides;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
@@ -130,6 +134,11 @@ public class PrinterController {
      */
     public void sendToPrinter(Message data) throws PrintersNotFoundException, PrinterException {
 
+        // Set attributes for the print job
+        PrintRequestAttributeSet pras = new HashPrintRequestAttributeSet();
+        pras.add(new Copies(2)); // Set the number of copies to 2
+        pras.add(Sides.DUPLEX);
+
         PrinterJob job = PrinterJob.getPrinterJob();
         job.setPrintable(new PrintableMessage(data));
 
@@ -141,7 +150,8 @@ public class PrinterController {
         }
 
         try {
-            job.print();
+            job.print(pras); // Print the job with the specified attributes
+            System.out.println("Printing job: " + job.getJobName()); // Print the name of the print job
             System.out.println("Printing to: " + defaultPrintService.getName()); // Print the name of the print service used
 
         } catch (Exception e) {

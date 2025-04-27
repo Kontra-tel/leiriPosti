@@ -51,88 +51,100 @@ public class PrintableMessage implements Printable {
     public int print(Graphics g, PageFormat pf, int pageIndex) throws PrinterException {
         
         // Check if the page index is valid
-        if (pageIndex > 0) {
+        if (pageIndex > 1) {
            return NO_SUCH_PAGE;
         }
 
-        // Get message data from the Message object
-        String title = printData.getSubject();
-        //String subject = printData.getSubject();
-        String author = printData.getAuthor();
-        String body = printData.getBody();
-
-        // Set the graphics context for printing
-        // Translate the graphics context to the printable area of the page
         Graphics2D g2d = (Graphics2D) g;
         g2d.translate(pf.getImageableX(), pf.getImageableY());
 
-        // Title
-        g2d.setFont(new Font("Serif", Font.BOLD, 24));
-        g2d.drawString(title, 50, 50); // Draw the title at the top-left corner
+        if (pageIndex == 0) {
+            // Front side of the paper
 
-        // Image
-        // Load the image corresponding to the day of the week
-        Image image = WeekDayImage.getImage(printData.getWeekDay()); // Load the image from the resources folder
+            // Get message data from the Message object
+            String title = printData.getSubject();
+            String author = printData.getAuthor();
+            String body = printData.getBody();
 
-        // Image dimensions
-        int imageWidth = 100;
-        int imageHeight = 100;
+            // Title
+            g2d.setFont(new Font("Serif", Font.BOLD, 24));
+            g2d.drawString(title, 50, 50); // Draw the title at the top-left corner
 
-        // Draw the image at the top-right corner of the page
-        // The image is drawn with a margin of 20 pixels from the right and top edges of the page
-        g2d.drawImage(image, (int) pf.getImageableWidth() - imageWidth - 20, 20, imageWidth, imageHeight, null);
+            // Image
+            Image image = WeekDayImage.getImage(printData.getWeekDay()); // Load the image from the resources folder
 
-        // Set font for the subject
-        g2d.setFont(new Font("Serif", Font.PLAIN, 12));
-        FontMetrics metrics = g2d.getFontMetrics();
-        int lineHeight = metrics.getHeight();
-        int maxWidth = (int) pf.getImageableWidth() - 100; // Leave some margin
-        int x = 50;
-        int y = 105; // Start drawing the body below the title and image
+            // Image dimensions
+            int imageWidth = 100;
+            int imageHeight = 100;
 
-        BufferedReader reader = new BufferedReader(new StringReader(body));
+            // Draw the image at the top-right corner of the page
+            g2d.drawImage(image, (int) pf.getImageableWidth() - imageWidth - 20, 20, imageWidth, imageHeight, null);
 
-        // Read the body line by line and draw it on the page
-        // The body is split into lines based on the maximum width
-        
-        String line;
-        try {
-            int availableHeight = (int) pf.getImageableHeight() - (4 * lineHeight); // Leave 4 rows for the greeting
+            // Set font for the subject
+            g2d.setFont(new Font("Serif", Font.PLAIN, 12));
+            FontMetrics metrics = g2d.getFontMetrics();
+            int lineHeight = metrics.getHeight();
+            int maxWidth = (int) pf.getImageableWidth() - 100; // Leave some margin
+            int x = 50;
+            int y = 105; // Start drawing the body below the title and image
 
-            while ((line = reader.readLine()) != null) {
+            BufferedReader reader = new BufferedReader(new StringReader(body));
 
-                int start = 0;
-                while (start < line.length()) {
-                    
-                    int end = start;
+            // Read the body line by line and draw it on the page
+            String line;
+            try {
+                int availableHeight = (int) pf.getImageableHeight() - (4 * lineHeight); // Leave 4 rows for the greeting
 
-                    while (end < line.length() && metrics.stringWidth(line.substring(start, end + 1)) <= maxWidth) {
-                        end++;
+                while ((line = reader.readLine()) != null) {
+
+                    int start = 0;
+                    while (start < line.length()) {
+                        
+                        int end = start;
+
+                        while (end < line.length() && metrics.stringWidth(line.substring(start, end + 1)) <= maxWidth) {
+                            end++;
+                        }
+
+                        if (y + lineHeight > availableHeight) {
+                            break; // Stop drawing if there's no more space for the body
+                        }
+
+                        g2d.drawString(line.substring(start, end), x, y);
+                        y += lineHeight;
+                        start = end;
                     }
-
-                    if (y + lineHeight > availableHeight) {
-                        break; // Stop drawing if there's no more space for the body
-                    }
-
-                    g2d.drawString(line.substring(start, end), x, y);
-                    y += lineHeight;
-                    start = end;
                 }
+
+            } catch (IOException e) {
+                e.printStackTrace();
             }
 
-        } catch (IOException e) {
-            e.printStackTrace();
+            // Set font for the author greeting and update line height
+            g2d.setFont(new Font("Serif", Font.ITALIC, 14));
+            metrics = g2d.getFontMetrics();
+            lineHeight = metrics.getHeight(); // Update line height for the greeting
+
+            y += lineHeight; // Add spacing after the body
+            g2d.drawString("Terveisin,", x, y); // Draw the greeting
+            y += lineHeight; // Move to the next line
+            g2d.drawString(author, x, y); // Draw the author's name below the greeting
+
+        } else if (pageIndex == 1) {
+            // Back side of the paper (duplex printing)
+
+            // Get recipient name
+            String recipient = printData.getRecipient();
+
+            // Center the recipient name on the page
+            g2d.setFont(new Font("Serif", Font.BOLD, 36));
+            FontMetrics metrics = g2d.getFontMetrics();
+            int stringWidth = metrics.stringWidth(recipient);
+            int x = (int) ((pf.getImageableWidth() - stringWidth) / 2);
+            int y = (int) (pf.getImageableHeight() / 2);
+
+            g2d.drawString(recipient, x, y);
         }
-
-        // Set font for the author greeting and update line height
-        g2d.setFont(new Font("Serif", Font.ITALIC, 14));
-        metrics = g2d.getFontMetrics();
-        lineHeight = metrics.getHeight(); // Update line height for the greeting
-
-        y += lineHeight; // Add spacing after the body
-        g2d.drawString("Terveisin,", x, y); // Draw the greeting
-        y += lineHeight; // Move to the next line
-        g2d.drawString(author, x, y); // Draw the author's name below the greeting
 
         return PAGE_EXISTS;
     }
