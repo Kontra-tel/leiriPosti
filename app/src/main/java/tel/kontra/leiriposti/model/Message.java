@@ -34,7 +34,7 @@ public class Message {
      * @param timeStamp
      * @param author
      */
-    public Message(String recipient, String subject, String body, String timeStamp, String author) {
+    public Message(String timeStamp, String subject, String body, String recipient, String author) {
         
         // Set data fields
         this.author = author;
@@ -46,6 +46,10 @@ public class Message {
         // 24.4.2025 klo 14.08.47 => 24/04/2025 14:08:47
         // Replace dots with slashes and remove "klo" (Finnish for "at")
         String[] dateTime = timeStamp.split(" klo ");
+
+        if (dateTime.length != 2) {
+            throw new IllegalArgumentException("Invalid timeStamp format: " + timeStamp);
+        }
 
         String date = dateTime[0].replace(".", "/").replace(" ", "/");
         String time = dateTime[1].replace(".", ":").replace(" ", ":");
@@ -65,7 +69,7 @@ public class Message {
             Calendar calendar = Calendar.getInstance();
             calendar.setTime(this.timeStamp);
             int dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK); // Get the day of the week (1-7)
-            this.weekDay = DayOfWeek.of(dayOfWeek-1); // Set the weekDay field (1=Monday, 7=Sunday)
+            this.weekDay = DayOfWeek.of(dayOfWeek); // Set the weekDay field (1=Monday, 7=Sunday)
             
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid date format: " + timeStamp, e);

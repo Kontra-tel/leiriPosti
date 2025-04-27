@@ -55,11 +55,17 @@ public class SheetsController {
                 List<Object> rowValues = values.get(0); // Get the first row of values
 
                 // Create a new Message object with the retrieved values
+                System.out.println("Row values: " + rowValues);
+                if (rowValues.size() < 5) {
+                    System.err.println("Row values do not contain enough data: " + rowValues.size());
+                    return null; // Not enough data to create a Message object
+                }
+
                 return new Message(
-                    (String) rowValues.get(3), // Recipient
+                    (String) rowValues.get(0),  // Timestamp
                     (String) rowValues.get(1), // Subject
                     (String) rowValues.get(2), // Body
-                    (String) rowValues.get(0),  // Timestamp
+                    (String) rowValues.get(3), // Recipient
                     (String) rowValues.get(4)   // Author
                 );
             }
