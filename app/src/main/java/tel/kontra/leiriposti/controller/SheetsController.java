@@ -32,6 +32,12 @@ public class SheetsController {
         this.spreadsheetId = spreadsheetId; // Set the spreadsheet ID
     }
 
+    /**
+     * Retrieves a message from the specified row in the spreadsheet.
+     * 
+     * @param row The row number from which to retrieve the message.
+     * @return A Message object containing the data from the specified row, or null if an error occurs.
+     */
     public Message getMessage(int row) {
 
         // Get the message from the specified row in the spreadsheet
