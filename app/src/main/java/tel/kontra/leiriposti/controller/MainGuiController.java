@@ -1,5 +1,8 @@
 package tel.kontra.leiriposti.controller;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -9,9 +12,12 @@ import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
 import javafx.scene.control.MenuItem;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 
 public class MainGuiController {
+
+    private static final Logger LOGGER = LogManager.getLogger(); // Logger for debugging
 
     @FXML
     private ListView<?> messageList; // ListView for displaying messages
@@ -87,7 +93,7 @@ public class MainGuiController {
     // Event handler for opening the About dialog
     @FXML
     private void onAbout() {
-        System.out.println("About clicked.");
+        LOGGER.debug("onAbout()", LOGGER);
         // Add logic to handle opening the About dialog
     }
 
@@ -101,10 +107,13 @@ public class MainGuiController {
 
             // Create a new stage for the Printer GUI
             Stage printerStage = new Stage();
+            printerStage.initModality(Modality.APPLICATION_MODAL);
+            printerStage.setResizable(false);
             printerStage.setTitle("Printer Settings");
             printerStage.setScene(new Scene(root));
-            printerStage.show();
+            printerStage.showAndWait(); // Wait for the stage to close before continuing
         } catch (Exception e) {
+            LOGGER.error("Error loading printer settings GUI: " + e.getMessage());
             e.printStackTrace();
         }
     }
