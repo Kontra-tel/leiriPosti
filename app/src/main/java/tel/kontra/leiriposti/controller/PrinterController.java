@@ -2,6 +2,7 @@ package tel.kontra.leiriposti.controller;
 
 import java.awt.print.PrinterException;
 import java.awt.print.PrinterJob;
+import java.util.Queue;
 
 import javax.print.PrintService;
 import javax.print.attribute.Attribute;
@@ -11,6 +12,7 @@ import javax.print.attribute.standard.Copies;
 import javax.print.attribute.standard.Sides;
 
 import org.apache.logging.log4j.Logger;
+
 import org.apache.logging.log4j.LogManager;
 
 import tel.kontra.leiriposti.model.Message;
@@ -21,29 +23,36 @@ import tel.kontra.leiriposti.model.PrintersNotFoundException;
  * PrinterController class is responsible for managing print services and sending data to the printer.
  * It provides methods to get available print services, set the default print service, and send data to the printer.
  * 
+ * Since version 1.5 of this class, this controller also handles a printing queue to avoid sending too many
+ * print jobs to the printer at once.
+ * 
  * This class is used to handle printing tasks in the application.
  * It allows the user to select a printer and send data to it for printing.
  * 
- * @version 1.0
+ * @version 1.5
  * @since 0.1
  * 
+ * @author Markus
  */
 public class PrinterController {
 
     private static final Logger LOGGER = LogManager.getLogger(); // Logger for debugging
 
+    private static PrinterController instance; // Singleton instance
+
     private PrintService[] printServices; // List of available print services
     private PrintService defaultPrintService; // Service in use
 
+    private Queue<PrintableMessage> printQueue; // Queue for print jobs
+
     /**
-     * Constructor for PrinterController class.
+     * Private constructor for PrinterController class.
      * It initializes the available print services and sets the default print service.
      * 
      * @throws PrintersNotFoundException If no printers are found.
      * @throws PrinterException If an error occurs while initializing the printer job.
-     * 
      */
-    public PrinterController() {
+    private PrinterController() {
         // Get print services and default print service
         printServices = PrinterJob.lookupPrintServices(); // Get all available print services
 
@@ -60,6 +69,18 @@ public class PrinterController {
         } else {
             LOGGER.warn("No print services found!"); // Log a warning message
         }
+    }
+
+    /**
+     * Get the singleton instance of PrinterController.
+     * 
+     * @return The singleton instance.
+     */
+    public static synchronized PrinterController getInstance() {
+        if (instance == null) {
+            instance = new PrinterController();
+        }
+        return instance;
     }
 
     /**
@@ -90,7 +111,7 @@ public class PrinterController {
      * 
      * @param defaultPrintService The default print service to set.
      */
-    public void setDefaultPrintService(PrintService defaultPrintService) {
+    public void setDefaultPrintService(PrintService defaultPrintService) {    
         this.defaultPrintService = defaultPrintService; // Set the default print service
     }
 
@@ -102,7 +123,7 @@ public class PrinterController {
     public void setPrintServiceByName(String name) {
         for (PrintService service : printServices) {
             if (service.getName().equals(name)) {
-                defaultPrintService = service; // Set the default print service by name
+                setDefaultPrintService(service); // Set the default print service by name
                 break;
             }
         }
