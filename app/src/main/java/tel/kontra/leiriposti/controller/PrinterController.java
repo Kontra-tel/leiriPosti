@@ -56,7 +56,7 @@ public class PrinterController {
         // Get the default print service if available
         if (printServices.length > 0) {
             defaultPrintService = printServices[0]; // Set the first service as default
-            System.out.println("Default print service: " + defaultPrintService.getName()); // Print the name of the default service
+            LOGGER.debug("Default print service: " + defaultPrintService.getName()); // Log the name of the default service
         } else {
             LOGGER.warn("No print services found!"); // Log a warning message
         }
@@ -115,12 +115,12 @@ public class PrinterController {
      */
     public void printServiceInfo() {
         if (defaultPrintService == null) {
-            System.out.println("No default print service set!"); // No default print service set
+            LOGGER.debug("No default print service set!"); // Log if no default print service is set
             return;
         } else {
-            System.out.println("Default print service: " + defaultPrintService.getName()); // Print the name of the default print service
-            for( Attribute a : defaultPrintService.getAttributes().toArray() ) {
-                System.out.println("* "+a.getName()+": "+a);
+            LOGGER.debug("Default print service: " + defaultPrintService.getName()); // Log the name of the default print service
+            for (Attribute a : defaultPrintService.getAttributes().toArray()) {
+                LOGGER.debug("* " + a.getName() + ": " + a); // Log each attribute of the default print service
             }
         }
     }
@@ -151,12 +151,11 @@ public class PrinterController {
 
         try {
             job.print(pras); // Print the job with the specified attributes
-            System.out.println("Printing job: " + job.getJobName()); // Print the name of the print job
-            System.out.println("Printing to: " + defaultPrintService.getName()); // Print the name of the print service used
+            LOGGER.debug("Printing job: " + job.getJobName()); // Log the name of the print job
+            LOGGER.debug("Printing to: " + defaultPrintService.getName()); // Log the name of the print service used
 
         } catch (Exception e) {
-            System.out.println("Error printing: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.error("Error printing: " + e.getMessage(), e); // Log the error
         }
     }
 }
