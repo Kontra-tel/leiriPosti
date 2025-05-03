@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ChoiceBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TreeView?>
+<?import javafx.scene.layout.AnchorPane?>
+<?import javafx.scene.layout.VBox?>
+
+
+<VBox alignment="TOP_CENTER" maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="215.0" prefWidth="464.0" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="tel.kontra.leiriposti.controller.PrinterGuiController">
+   <children>
+      <AnchorPane prefHeight="160.0" prefWidth="464.0">
+         <children>
+            <TreeView fx:id="printerTree" prefHeight="155.0" prefWidth="454.0" AnchorPane.bottomAnchor="5.0" AnchorPane.leftAnchor="5.0" AnchorPane.rightAnchor="5.0" AnchorPane.topAnchor="5.0" />
+         </children>
+      </AnchorPane>
+      <AnchorPane prefHeight="65.0" prefWidth="464.0">
+         <children>
+            <Button fx:id="applySelection" layoutX="380.0" layoutY="21.0" mnemonicParsing="false" onAction="#onApply" prefHeight="25.0" prefWidth="70.0" text="Apply" AnchorPane.bottomAnchor="15.0" AnchorPane.rightAnchor="15.0" AnchorPane.topAnchor="20.0" />
+            <ChoiceBox fx:id="printerSelection" layoutX="232.0" layoutY="21.0" prefHeight="25.0" prefWidth="106.0" AnchorPane.bottomAnchor="15.0" AnchorPane.leftAnchor="232.0" AnchorPane.rightAnchor="126.0" AnchorPane.topAnchor="20.0" />
+            <Label alignment="CENTER" layoutX="147.0" layoutY="21.0" prefHeight="25.0" prefWidth="85.0" text="Select printer" AnchorPane.bottomAnchor="15.0" AnchorPane.leftAnchor="147.0" AnchorPane.rightAnchor="232.0" AnchorPane.topAnchor="20.0" />
+            <Button fx:id="findPrinters" layoutX="14.0" layoutY="21.0" mnemonicParsing="false" onAction="#onFindPrinters" prefHeight="25.0" prefWidth="91.0" text="Find printers" AnchorPane.bottomAnchor="15.0" AnchorPane.leftAnchor="15.0" AnchorPane.topAnchor="20.0" />
+         </children>
+      </AnchorPane>
+   </children>
+</VBox>
