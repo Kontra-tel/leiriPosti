@@ -15,15 +15,19 @@ import javafx.scene.control.MenuItem;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
-public class MainGuiController {
+import tel.kontra.leiriposti.view.PrinterUpdateEvent;
 
+public class MainGuiController {
+    
     private static final Logger LOGGER = LogManager.getLogger(); // Logger for debugging
 
-    @FXML
-    private ListView<?> messageList; // ListView for displaying messages
+    private PrinterController printerController = PrinterController.getInstance(); // Instance of PrinterController
 
     @FXML
-    private ChoiceBox<?> showMessageChoice; // ChoiceBox for filtering messages
+    private ListView<String> messageList; // ListView for displaying messages
+
+    @FXML
+    private ChoiceBox<String> showMessageChoice; // ChoiceBox for filtering messages
 
     @FXML
     private Button printSelected; // Button for printing the selected message
@@ -54,6 +58,7 @@ public class MainGuiController {
 
     @FXML
     private MenuItem onAbout; // Menu item for the About dialog
+
 
     // Event handler for printing the selected message
     @FXML
@@ -112,9 +117,25 @@ public class MainGuiController {
             printerStage.setTitle("Printer Settings");
             printerStage.setScene(new Scene(root));
             printerStage.showAndWait(); // Wait for the stage to close before continuing
+
+            // Get changes from the PrinterGuiController
+            PrinterController pC = PrinterController.getInstance();
+            SheetsController sC = SheetsController.getInstance();
+
+            // Update the information labels
+            printerInfo.setText("Printer - " + pC.getDefaultPrintServiceName());
+            sheetsInfo.setText("Sheets - " + sC.getSheetName());
+
         } catch (Exception e) {
             LOGGER.error("Error loading printer settings GUI: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    @FXML
+    private void initialize() {
+        // Initialize the GUI components and set up event handlers
+        LOGGER.debug("MainGuiController initialized.");
+        
     }
 }
