@@ -12,7 +12,6 @@
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.HBox?>
 
-
 <BorderPane maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="400.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="tel.kontra.leiriposti.controller.MainGuiController">
    <center>
       <HBox alignment="CENTER" BorderPane.alignment="CENTER">
@@ -24,12 +23,12 @@
             </ListView>
             <AnchorPane prefHeight="330.0" prefWidth="356.0">
                <children>
-                  <Label layoutX="14.0" layoutY="14.0" prefHeight="25.0" prefWidth="68.0" text="Show" AnchorPane.leftAnchor="14.0" />
-                  <ChoiceBox fx:id="showMessageChoice" layoutX="14.0" layoutY="39.0" prefHeight="25.0" prefWidth="70.0" AnchorPane.leftAnchor="14.0" />
+                  <Label layoutX="14.0" layoutY="14.0" prefHeight="25.0" prefWidth="68.0" text="Show" AnchorPane.leftAnchor="14.0" AnchorPane.topAnchor="14.0" />
+                  <ChoiceBox fx:id="showMessageChoice" layoutX="14.0" layoutY="39.0" prefHeight="25.0" prefWidth="70.0" AnchorPane.leftAnchor="14.0" AnchorPane.topAnchor="39.0" />
                   <Button fx:id="printSelected" layoutX="230.0" layoutY="267.0" mnemonicParsing="false" onAction="#onPrintSelected" text="Print selected" AnchorPane.rightAnchor="14.0" />
-                  <Button fx:id="printAll" layoutX="237.0" layoutY="298.0" mnemonicParsing="false" onAction="#onPrintAll" text="Print all new" AnchorPane.rightAnchor="14.0" />
+                  <Button fx:id="printAll" layoutX="237.0" layoutY="298.0" mnemonicParsing="false" onAction="#onPrintAll" text="Print all new" AnchorPane.bottomAnchor="19.0" AnchorPane.rightAnchor="14.0" />
                   <Button fx:id="clearAllMsgs" layoutX="14.0" layoutY="267.0" mnemonicParsing="false" onAction="#onClearAllMsg" text="Clear all messages" AnchorPane.leftAnchor="14.0" />
-                  <Button fx:id="delAllMsgs" layoutX="14.0" layoutY="298.0" mnemonicParsing="false" onAction="#onDelAllMsgs" text="Delete all messages" AnchorPane.leftAnchor="14.0" />
+                  <Button fx:id="delAllMsgs" layoutX="14.0" layoutY="298.0" mnemonicParsing="false" onAction="#onDelAllMsgs" text="Delete all messages" AnchorPane.bottomAnchor="19.0" AnchorPane.leftAnchor="14.0" />
                </children>
             </AnchorPane>
          </children>
