@@ -61,7 +61,7 @@ public class SheetsController {
      */
     public static synchronized SheetsController getInstance() {
         if (instance == null) {
-            instance = new SheetsController(2);
+            instance = new SheetsController(1);
         }
         return instance;
     }
@@ -226,17 +226,10 @@ public class SheetsController {
                     (String) rowValues.get(4)   // Author
                 );
             }
-
-            // Update the latest row if the retrieved row is greater than the current latestRow
-            if (row > latestRow) {
-                latestRow = row; // Update the latest row number
-            }
-
         } catch (Exception e) {
             LOGGER.error("Error retrieving message: " + e.getMessage());
             e.printStackTrace();
         }
-
         return null;
     }
 
@@ -287,7 +280,7 @@ public class SheetsController {
      * @return A list of Message objects containing the new messages.
      * @throws SheetsNotFoundException If the Sheets service is not initialized.
      */
-    public List<Message> getNewMessages() throws SheetsNotFoundException {
+    public synchronized List<Message> getNewMessages() throws SheetsNotFoundException {
         if (sheetsService == null) {
             LOGGER.error("Sheets service is not initialized.");
             throw new SheetsNotFoundException("Sheets service is not initialized.");
@@ -296,15 +289,24 @@ public class SheetsController {
         try {
             // Get the number of rows in the spreadsheet
             int numRows = getNumRows();
+            int newLastRow = 0 ;
 
-            // Retrieve messages from the spreadsheet
+            // Retrieve messages from the spreadsheet start from the latest row
             List<Message> messages = new ArrayList<>();
-            for (int i = latestRow; i <= numRows; i++) { // start from latestRow to numRows
-                if (i < 1) continue; // Skip invalid rows (e.g., row 0)
-                Message message = getMessage(i);
+            for (int row = latestRow + 1; row <= numRows; row++) {
+                Message message = getMessage(row);
                 if (message != null) {
-                    messages.add(message);
+                    messages.add(message); // Add the message to the list if it is not null
                 }
+                newLastRow = row; // Update the new last row number
+            }
+
+            // Update the latest row number in the controller
+            if (messages.size() > 0) {
+                latestRow = newLastRow; // Update the latest row number to the last retrieved row
+                LOGGER.info("New messages retrieved: " + messages.size() + ", latest row updated to: " + latestRow);
+            } else {
+                LOGGER.info("No new messages found.");
             }
             return messages;
 
@@ -313,5 +315,23 @@ public class SheetsController {
             e.printStackTrace();
         }
         return Collections.emptyList(); // Return an empty list in case of an error
+    }
+
+    public int checkNewMessages() throws SheetsNotFoundException {
+        if (sheetsService == null) {
+            LOGGER.error("Sheets service is not initialized.");
+            throw new SheetsNotFoundException("Sheets service is not initialized.");
+        }
+
+        // Check if the latest row is less than the number of rows in the spreadsheet
+        int numRows = getNumRows();
+
+        if (latestRow < numRows) {
+            LOGGER.info("New messages available. Latest row: " + latestRow + ", Total rows: " + numRows);
+            return numRows - latestRow; // Return the number of new messages
+        } else {
+            LOGGER.info("No new messages available. Latest row: " + latestRow + ", Total rows: " + numRows);
+            return 0; // No new messages
+        }
     }
 }
