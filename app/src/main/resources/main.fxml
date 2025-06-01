@@ -8,27 +8,34 @@
 <?import javafx.scene.control.Menu?>
 <?import javafx.scene.control.MenuBar?>
 <?import javafx.scene.control.MenuItem?>
+<?import javafx.scene.control.ProgressBar?>
+<?import javafx.scene.control.Tooltip?>
 <?import javafx.scene.layout.AnchorPane?>
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.HBox?>
 
-<BorderPane maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="400.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="tel.kontra.leiriposti.controller.MainGuiController">
+<BorderPane maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="400.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="tel.kontra.leiriposti.gui.MainGuiController">
    <center>
       <HBox alignment="CENTER" BorderPane.alignment="CENTER">
          <children>
-            <ListView fx:id="messageList" prefHeight="337.0" prefWidth="277.0">
+            <ListView fx:id="messageList" prefHeight="342.0" prefWidth="377.0">
                <HBox.margin>
                   <Insets right="5.0" />
                </HBox.margin>
             </ListView>
             <AnchorPane prefHeight="330.0" prefWidth="356.0">
                <children>
-                  <Label layoutX="14.0" layoutY="14.0" prefHeight="25.0" prefWidth="68.0" text="Show" AnchorPane.leftAnchor="14.0" AnchorPane.topAnchor="14.0" />
-                  <ChoiceBox fx:id="showMessageChoice" layoutX="14.0" layoutY="39.0" prefHeight="25.0" prefWidth="70.0" AnchorPane.leftAnchor="14.0" AnchorPane.topAnchor="39.0" />
-                  <Button fx:id="printSelected" layoutX="230.0" layoutY="267.0" mnemonicParsing="false" onAction="#onPrintSelected" text="Print selected" AnchorPane.rightAnchor="14.0" />
-                  <Button fx:id="printAll" layoutX="237.0" layoutY="298.0" mnemonicParsing="false" onAction="#onPrintAll" text="Print all new" AnchorPane.bottomAnchor="19.0" AnchorPane.rightAnchor="14.0" />
-                  <Button fx:id="clearAllMsgs" layoutX="14.0" layoutY="267.0" mnemonicParsing="false" onAction="#onClearAllMsg" text="Clear all messages" AnchorPane.leftAnchor="14.0" />
-                  <Button fx:id="delAllMsgs" layoutX="14.0" layoutY="298.0" mnemonicParsing="false" onAction="#onDelAllMsgs" text="Delete all messages" AnchorPane.bottomAnchor="19.0" AnchorPane.leftAnchor="14.0" />
+                  <Label layoutX="14.0" layoutY="41.0" prefHeight="25.0" prefWidth="68.0" text="Filter" AnchorPane.leftAnchor="14.0" AnchorPane.topAnchor="41.0" />
+                  <ChoiceBox fx:id="showMessageChoice" layoutX="14.0" layoutY="66.0" onInputMethodTextChanged="#onFilterChange" prefHeight="25.0" prefWidth="70.0" AnchorPane.leftAnchor="14.0" AnchorPane.topAnchor="66.0">
+                     <tooltip>
+                        <Tooltip text="Which messages to show on the list" />
+                     </tooltip></ChoiceBox>
+                  <ProgressBar fx:id="printingProgressbar" layoutX="38.0" layoutY="239.0" prefHeight="18.0" prefWidth="215.0" />
+                  <Label fx:id="printStatus" alignment="CENTER" layoutX="67.0" layoutY="214.0" prefHeight="25.0" prefWidth="157.0" text="None" />
+                  <Label fx:id="latestMessage" layoutX="12.0" layoutY="113.0" prefHeight="25.0" prefWidth="267.0" text="Latest Message: none" />
+                  <Button layoutX="132.0" layoutY="66.0" mnemonicParsing="false" onAction="#onGetMessages" text="Check for messages" />
+                  <Label fx:id="queValue" layoutX="12.0" layoutY="146.0" prefHeight="25.0" prefWidth="267.0" text="Messages in queue: none" />
+                  <Button fx:id="printingBtn" layoutX="84.0" layoutY="266.0" mnemonicParsing="false" onAction="#doPrint" prefHeight="25.0" prefWidth="122.0" text="Start printing" />
                </children>
             </AnchorPane>
          </children>
@@ -64,7 +71,7 @@
                 <Menu mnemonicParsing="false" text="Settings">
                   <items>
                         <MenuItem mnemonicParsing="false" onAction="#onPrinterSettings" text="Printer" />
-                    <MenuItem mnemonicParsing="false" onAction="#onGoogleSettings" text="Google" />
+                    <MenuItem mnemonicParsing="false" onAction="#onProfile" text="Profile" />
                   </items>
                 </Menu>
                 <Menu mnemonicParsing="false" text="Help">
