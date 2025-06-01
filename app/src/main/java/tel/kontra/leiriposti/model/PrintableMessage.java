@@ -13,6 +13,10 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
 
+import javax.print.Doc;
+import javax.print.SimpleDoc;
+import javax.print.DocFlavor;
+
 import tel.kontra.leiriposti.util.WeekDayImage;
 
 /**
@@ -147,6 +151,17 @@ public class PrintableMessage implements Printable {
         }
 
         return PAGE_EXISTS;
+    }
+
+    /**
+     * Returns a Doc object representing this message for use with Java Print Service API.
+     * The Doc will use the Printable implementation of this class.
+     *
+     * @return Doc object wrapping this PrintableMessage
+     */
+    public Doc toDoc() {
+        // The DocFlavor for a Printable is SERVICE_FORMATTED.PRINTABLE
+        return new SimpleDoc(this, DocFlavor.SERVICE_FORMATTED.PRINTABLE, null);
     }
 
     public String getTitle() {
