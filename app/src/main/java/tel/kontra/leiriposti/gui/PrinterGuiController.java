@@ -1,4 +1,4 @@
-package tel.kontra.leiriposti.controller;
+package tel.kontra.leiriposti.gui;
 
 import javax.print.DocFlavor;
 import javax.print.PrintService;
@@ -14,6 +14,17 @@ import javafx.scene.control.Label;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 
+import tel.kontra.leiriposti.controller.PrinterController;
+
+/**
+ * PrinterGuiController class is responsible for managing the printer GUI.
+ * It handles the display of available printers, their attributes, and allows the user to select a printer.
+ * 
+ * @version 1.0
+ * @since 0.1
+ * 
+ * @author Markus
+ */
 public class PrinterGuiController {
 
     private static final Logger LOGGER = LogManager.getLogger(); // Logger for debugging
@@ -62,6 +73,9 @@ public class PrinterGuiController {
             // INFO: I've just realized that the error for setting
             // a non-existing printer is caught only when printing
 
+            // Trigger MainGui to update the selected printer
+            LOGGER.info("Printer selection applied: " + selectedPrinter);
+
         } else {
             LOGGER.warn("No printer selected.");
         }
@@ -97,11 +111,12 @@ public class PrinterGuiController {
      * Populate the printer tree with available print services and their attributes.
      * This method runs in a separate thread to avoid blocking the UI thread.
      * 
-     * This is also a bit of a hacky function, as it does multiple things at once:
+     * This is also bit of a hacky function, as it does multiple things at once:
      * 1. It populates the printer tree with available print services.
      * 2. It adds the printer names to the choice box for selection.
      * 
-     * This is not the best practice, but it works for this case as I can't be assed <-- Wow Copilot has learned to write like me
+     * This is not best practice, but it works and really everything doesn't need to be
+     * separated into smaller methods for this simple task.
      */
     private void populatePrinterTree() {
         // Clear the existing tree items
@@ -114,11 +129,14 @@ public class PrinterGuiController {
         // Add the printers to the choice box for selection
         printerSelection.getItems().clear(); // Clear existing items
         
-        // Run the for loop in parallel to avoid blocking the UI thread
-        // Quick and dirty way to run the for loop in parallel
-        // This is not the best practice, but it works for this case as I cant be assed
-        // to implement the javaFX concurrency API for this simple task
-
+        /**
+        * Run the for loop in parallel to avoid blocking the UI thread
+        * Quick and dirty way to run the for loop in parallel
+        * This is not the best practice, but it works for this case as I cant be assed
+        * to implement the javaFX concurrency API for this simple task
+        *
+        * Note: This turned out not to be that simple after all, but here we are.
+        */
         new Thread(() -> {
             for (PrintService service : printServices) {
                 // Add the printer name to the choice box
