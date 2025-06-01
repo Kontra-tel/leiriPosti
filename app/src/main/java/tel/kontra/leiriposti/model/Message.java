@@ -1,5 +1,6 @@
 package tel.kontra.leiriposti.model;
 
+import java.io.Serializable;
 import java.text.SimpleDateFormat;
 import java.time.DayOfWeek;
 import java.util.Calendar;
@@ -12,9 +13,13 @@ import lombok.Data;
  * Message class represents a message with sender, recipient, subject, and body.
  * It is used to encapsulate the data for sending messages.
  * 
+ * @version 1.1
+ * @since 0.1
  */
 @Data
-public class Message {
+public class Message implements Serializable {
+    
+    private static final long serialVersionUID = 1L;
     
     private String recipient;
     private String subject;
@@ -22,9 +27,8 @@ public class Message {
     private Date timeStamp; // The time when the message was sent
     private String author; // The author of the message
     private DayOfWeek weekDay; // The day of the week when the message was sent (1-7)
+    private MessageStatus status = MessageStatus.NOT_PRINTED; // Status of the message (not printed, printed, printing)
     
-    // Maybe an attachment field in the future
-
     /**
      * Constructor for Message class.
      * 
@@ -42,9 +46,11 @@ public class Message {
         this.subject = subject;
         this.body = body;
 
-        // We have to do some cleaning for the timeStamp to match
-        // 24.4.2025 klo 14.08.47 => 24/04/2025 14:08:47
-        // Replace dots with slashes and remove "klo" (Finnish for "at")
+        /**
+         * We have to do some cleaning for the timeStamp to match
+         * 24.4.2025 klo 14.08.47 => 24/04/2025 14:08:47
+         * Replace dots with slashes and remove "klo" (Finnish for "at")
+         */
         String[] dateTime = timeStamp.split(" klo ");
 
         if (dateTime.length != 2) {
@@ -74,7 +80,15 @@ public class Message {
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid date format: " + timeStamp, e);
         }
+    }
 
+    /**
+     * Sets the status of the message.
+     * @param status The status to set for the message.
+     * @see MessageStatus
+     */
+    public void setStatus(MessageStatus status) {
+        this.status = status;
     }
 
     @Override
