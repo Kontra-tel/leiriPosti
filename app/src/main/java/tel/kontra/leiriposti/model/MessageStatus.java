@@ -40,6 +40,11 @@ public enum MessageStatus {
     QUEUED,
 
     /**
+     * Message is deleted
+     */
+    DELETED,
+
+    /**
      * Message is in error state
      */
     ERROR,

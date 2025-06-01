@@ -93,13 +93,6 @@ public class Message implements Serializable {
 
     @Override
     public String toString() {
-        return "Message Details:\n" +
-            "Author: " + author + "\n" +
-            "Recipient: " + recipient + "\n" +
-            "Subject: " + subject + "\n" +
-            "Body: " + body + "\n" +
-            "Time Sent: " + timeStamp + "\n" +
-            "Weekday: " + weekDay + "\n";
+        return "[" + recipient + "] " + subject + " - " + status;
     }
-
 }
