@@ -289,22 +289,6 @@ public class MainGuiController {
     });
 
     /**
-     * This method is called when the spreadsheet ID is missing.
-     * It can be used to open a dialog or prompt the user for the spreadsheet ID.
-     */
-    private void onSpreadSheetMissing() {
-        try {
-            LOGGER.info("Opening Initialize GUI to request spreadsheet ID from the user.");
-
-            // Start the Initialize GUI
-            SheetIdMissingGui.start(new Stage());
-
-        } catch (Exception e) {
-            LOGGER.error("Error loading Initialize GUI: " + e.getMessage(), e);
-        }
-    }
-
-    /**
      * Handles the context menu for message selection in the ListView.
      * This method is triggered when the user right-clicks on a message in the ListView.
      * It displays a context menu with options to delete, add to queue, or remove from queue.
