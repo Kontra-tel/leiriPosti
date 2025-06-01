@@ -18,7 +18,7 @@ repositories {
 
 // JavaFX configuration
 javafx {
-    version = "17"
+    version = "21"
     modules = [ 'javafx.controls', 'javafx.fxml' ]
 }
 
@@ -62,7 +62,7 @@ dependencies {
 // Apply a specific Java toolchain to ease working on different environments.
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 
