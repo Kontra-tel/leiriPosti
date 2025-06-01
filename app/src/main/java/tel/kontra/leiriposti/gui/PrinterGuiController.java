@@ -15,6 +15,7 @@ import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 
 import tel.kontra.leiriposti.controller.PrinterController;
+import tel.kontra.leiriposti.model.PrintersNotFoundException;
 
 /**
  * PrinterGuiController class is responsible for managing the printer GUI.
@@ -68,7 +69,17 @@ public class PrinterGuiController {
             PrinterController printerController = PrinterController.getInstance();
 
             // Set the default print service based on the selected printer name
-            printerController.setPrintServiceByName(selectedPrinter);
+            try {
+                printerController.setPrintServiceByName(selectedPrinter);
+            } catch (PrintersNotFoundException e) {
+                LOGGER.error("Printer not found: " + selectedPrinter, e);
+                selectPrinterLabel.setText("Error: Printer not found.");
+                return; // Exit the method if the printer is not found
+            } catch (Exception e) {
+                LOGGER.error("An error occurred while setting the printer: " + selectedPrinter, e);
+                selectPrinterLabel.setText("Error: Unable to set printer.");
+                return; // Exit the method if any other error occurs
+            }
 
             // INFO: I've just realized that the error for setting
             // a non-existing printer is caught only when printing

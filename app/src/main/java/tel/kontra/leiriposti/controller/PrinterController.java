@@ -161,7 +161,7 @@ public class PrinterController {
      * 
      * @param name The name of the print service to set as default.
      */
-    public void setPrintServiceByName(String name) {
+    public void setPrintServiceByName(String name) throws PrintersNotFoundException {
         for (PrintService service : printServices) {
             if (service.getName().equals(name)) {
                 setDefaultPrintService(service); // Set the default print service by name
@@ -171,7 +171,7 @@ public class PrinterController {
 
         // If no service with the given name is found, defaultPrintService remains null
         if (defaultPrintService == null) {
-            LOGGER.warn("No print service found with name: " + name); // Log a warning if no service is found
+            throw new PrintersNotFoundException("No print service found with name: " + name + "."); // Throw exception if no service is found
         } else {
             LOGGER.info("Default print service set to: " + defaultPrintService.getName()); // Log the name of the new default print service
         }
