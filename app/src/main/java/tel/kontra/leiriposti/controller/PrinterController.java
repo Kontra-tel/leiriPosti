@@ -2,6 +2,7 @@ package tel.kontra.leiriposti.controller;
 
 import java.awt.print.PrinterException;
 import java.awt.print.PrinterJob;
+import java.util.LinkedList;
 import java.util.Queue;
 
 import javax.print.PrintService;
@@ -12,10 +13,10 @@ import javax.print.attribute.standard.Copies;
 import javax.print.attribute.standard.Sides;
 
 import org.apache.logging.log4j.Logger;
-
 import org.apache.logging.log4j.LogManager;
 
 import tel.kontra.leiriposti.model.Message;
+import tel.kontra.leiriposti.model.MessageStatus;
 import tel.kontra.leiriposti.model.PrintableMessage;
 import tel.kontra.leiriposti.model.PrintersNotFoundException;
 
@@ -29,7 +30,7 @@ import tel.kontra.leiriposti.model.PrintersNotFoundException;
  * This class is used to handle printing tasks in the application.
  * It allows the user to select a printer and send data to it for printing.
  * 
- * @version 1.5
+ * @version 2.0
  * @since 0.1
  * 
  * @author Markus
@@ -40,10 +41,50 @@ public class PrinterController {
 
     private static PrinterController instance; // Singleton instance
 
+    /**
+     * List of available print services.
+     * 
+     * This array holds the available print services that can be used to send data to the printer.
+     * It is initialized in the constructor and can be accessed through the getPrintServices() method.
+     */
     private PrintService[] printServices; // List of available print services
     private PrintService defaultPrintService; // Service in use
 
-    private Queue<PrintableMessage> printQueue; // Queue for print jobs
+    /**
+     * Queue for print jobs.
+     * 
+     * This queue holds PrintableMessage objects that are to be printed.
+     * It is used to manage the print jobs and ensure that we dont flood the printer with too many jobs at once.
+     */
+    private Queue<Message> printQueue;
+
+    private Boolean isPaused = false; // Flag to indicate if printing is paused
+
+    /**
+     * Runnable for printing thread.
+     * 
+     * This runnable is used to process the print queue and send messages to the printer.
+     * It runs in a separate thread to avoid blocking the main application thread.
+     */
+    private Runnable printThread = new Runnable() {
+        @Override
+        public void run() {
+            while (!printQueue.isEmpty() && !isPaused) { // Continue until the queue is empty or printing is paused
+                Message data = printQueue.poll(); // Get the next message from the queue
+                if (data != null) {
+                    try {
+                        sendToPrinter(data); // Send the message to the printer
+                    } catch (PrintersNotFoundException | PrinterException e) {
+                        LOGGER.error("Error sending message to printer: " + e.getMessage(), e); // Log any errors
+                    }
+                } else {
+                    LOGGER.warn("No more messages in the print queue."); // Log if there are no more messages in the queue
+                }
+            }
+            LOGGER.info("Print queue processing completed."); // Log when the print queue processing is completed
+            isPaused = true; // Set the isPaused flag to true to indicate that printing is paused
+        }
+    };
 
     /**
      * Private constructor for PrinterController class.
@@ -127,6 +168,13 @@ public class PrinterController {
                 break;
             }
         }
+
+        // If no service with the given name is found, defaultPrintService remains null
+        if (defaultPrintService == null) {
+            LOGGER.warn("No print service found with name: " + name); // Log a warning if no service is found
+        } else {
+            LOGGER.info("Default print service set to: " + defaultPrintService.getName()); // Log the name of the new default print service
+        }
     }
 
     /**
@@ -147,19 +195,137 @@ public class PrinterController {
     }
 
     /**
-     * Print the given data using the printable service.
+     * Set the print queue.
      * 
-     * @param data The data to print.
-     * @throws PrinterException If an error occurs while printing.
-     * @throws PrintersNotFoundException If no printers are found.
+     * This method sets the print queue to the provided queue.
+     * It is used to manage the print jobs that are to be printed.
+     * 
+     * @param printQueue The queue of messages to set as the print queue.
      */
-    public void sendToPrinter(Message data) throws PrintersNotFoundException, PrinterException {
+    public void setPrintQueue(Queue<Message> printQueue) {
+        this.printQueue = printQueue; // Set the print queue to the provided queue
+        LOGGER.debug("Print queue set with " + printQueue.size() + " messages."); // Log the size of the print queue
+    }
+
+    /**
+     * Add a message to the print queue.
+     * 
+     * This method adds a PrintableMessage to the print queue for later printing.
+     * It initializes the print queue if it is null.
+     * 
+     * @param message The PrintableMessage to add to the print queue.
+     */
+    public void addToPrintQueue(Message message) {
+        if (printQueue == null) {
+            printQueue = new LinkedList<>(); // Initialize the print queue if it is null
+        }
+
+        // Set message status to "PRINTING"
+        message.setStatus(MessageStatus.QUEUED); // Set the status of the message to QUEUED
+
+        printQueue.add(message); // Add the message to the print queue
+        LOGGER.debug("Added message to print queue: " + message.getSubject()); // Log the addition of the message to the queue
+    }
+
+    /**
+     * Get the print queue.
+     * 
+     * This method returns the current print queue.
+     * 
+     * @return The current print queue.
+     */
+    public Queue<Message> getPrintQueue() {
+        return printQueue; // Return the current print queue
+    }
+
+    /**
+     * Start printing messages from the print queue.
+     * 
+     * This method starts a new thread to process the print queue and send messages to the printer.
+     * It will continue to process messages until the queue is empty or printing is paused.
+     * 
+     * @return Success code indicating the status of the printing operation.
+     */
+    public void doPrint() {
+        
+        // Check if the print queue is empty
+        if (printQueue == null || printQueue.isEmpty()) {
+            LOGGER.info("Print queue is empty, nothing to print!"); // Log if the print queue is empty
+            return; // Exit the method if there are no messages to print
+        }
+        
+        // Set the isPaused flag to false to allow printing
+        isPaused = false; // Reset the isPaused flag to allow printing
+
+        // Start a new thread to process the print queue
+        if (printThread instanceof Thread) {
+            ((Thread) printThread).start(); // Start the print thread if it is an instance of Thread
+        }
+
+        LOGGER.info("Started printing from the queue, " + printQueue.size() + " messages in the queue.");
+        LOGGER.info("Using thread: " + Thread.currentThread().getName()); // Log the thread name used for printing
+    }
+
+    /**
+     * Pause the printing process.
+     * 
+     * This method sets the isPaused flag to true, which will stop the printing process when the current job is finished.
+     */
+    public void pausePrinting() {
+        
+        LOGGER.info("Pausing printing..."); // Log that printing is being paused
+
+        // Wait for the current print job to finish
+        if (printThread instanceof Thread) {
+            try {
+                ((Thread) printThread).join(); // Wait for the print thread to finish
+            } catch (InterruptedException e) {
+                LOGGER.error("Error while waiting for print thread to finish: " + e.getMessage(), e); // Log any errors
+            }
+        }
+
+        // Set the isPaused flag to true to stop further printing
+        isPaused = true; // Set the isPaused flag to true
+        
+        LOGGER.info("Printing paused."); // Log that printing has been paused
+        
+        return; // Exit the method after pausing printing
+    }
+
+    /**
+     * Check if the printing process is currently active.
+     * 
+     * This method checks the isPaused flag to determine if printing is currently active.
+     * 
+     * @return true if printing is not paused, false otherwise.
+     */
+    public boolean isPrinting() {
+        return !isPaused; // Return true if printing is not paused
+    }
+
+    /**
+     * Send the next message in the print queue to the printer.
+     * 
+     * This method retrieves the next PrintableMessage from the print queue and sends it to the printer.
+     * If the print queue is empty, it does nothing.
+     * 
+     * This method will make the current thread wait until the print job is completed.
+     * this is done to ensure that we do not flood the printer with too many print jobs at once.
+     * 
+     * @throws PrintersNotFoundException If no printers are found.
+     * @throws PrinterException If an error occurs while printing.
+     */
+    private void sendToPrinter(Message data) throws PrintersNotFoundException, PrinterException {
+
+        // Set the status of the message to PRINTING
+        data.setStatus(MessageStatus.PRINTING); // Set the status of the message to PRINTING
 
         // Set attributes for the print job
         PrintRequestAttributeSet pras = new HashPrintRequestAttributeSet();
         pras.add(new Copies(2)); // Set the number of copies to 2
         pras.add(Sides.DUPLEX);
 
+        // Create a PrinterJob instance and set the printable object
         PrinterJob job = PrinterJob.getPrinterJob();
         job.setPrintable(new PrintableMessage(data));
 
@@ -172,8 +338,12 @@ public class PrinterController {
 
         try {
             job.print(pras); // Print the job with the specified attributes
-            LOGGER.debug("Printing job: " + job.getJobName()); // Log the name of the print job
-            LOGGER.debug("Printing to: " + defaultPrintService.getName()); // Log the name of the print service used
+            LOGGER.info("Printing job: " + job.getJobName()); // Log the name of the print job
+            LOGGER.info("Printing to: " + defaultPrintService.getName()); // Log the name of the print service used
+
+            job.wait(); // Wait for the print job to complete
+            data.setStatus(MessageStatus.PRINTED); // Set the status of the message to PRINTED after successful printing
+            LOGGER.info("Print job completed successfully for message: " + data.getSubject()); // Log successful printing
 
         } catch (Exception e) {
             LOGGER.error("Error printing: " + e.getMessage(), e); // Log the error
