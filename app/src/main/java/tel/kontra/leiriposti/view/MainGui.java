@@ -2,12 +2,16 @@ package tel.kontra.leiriposti.view;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
+import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
@@ -18,6 +22,7 @@ import tel.kontra.leiriposti.controller.PrinterController;
 import tel.kontra.leiriposti.controller.SessionProfileController;
 import tel.kontra.leiriposti.controller.SheetsController;
 import tel.kontra.leiriposti.model.Message;
+import tel.kontra.leiriposti.model.MessageStatus;
 import tel.kontra.leiriposti.model.SessionProfile;
 import tel.kontra.leiriposti.model.PrintersNotFoundException;
 import tel.kontra.leiriposti.service.GoogleAuth;
@@ -41,6 +46,8 @@ public class MainGui extends Application {
     private static final Logger LOGGER = LogManager.getLogger(); // Logger for debugging
     private static Stage mainStage;
     private static Stage consoleStage;
+    public static boolean isDebug = false; // Debug mode flag
+    public static boolean isDebug() { return isDebug; }
 
     /**
      * The main entry point for the application.
@@ -51,6 +58,7 @@ public class MainGui extends Application {
      */
     @Override
     public void start(Stage primaryStage) throws Exception {
+
         // --- Controller and Service Setup ---
         // Get session profile
         SessionProfileController sessionProfileController = SessionProfileController.getInstance();
@@ -66,7 +74,10 @@ public class MainGui extends Application {
         GoogleServiceFactory googleServiceFactory = GoogleServiceFactory.getInstance(credentials);
         Sheets sheetsService = googleServiceFactory.getSheetsService();
 
-        // SheetsController setup
+        /**
+         * SheetsController setup.
+         * This controller manages the interaction with Google Sheets,
+         */
         int lastRow = session.getLastRow();
         SheetsController sheetsController = (lastRow > 0)
             ? SheetsController.getInstance(lastRow)
@@ -87,27 +98,40 @@ public class MainGui extends Application {
         sheetsController.initialize(sheetsService);
         sheetsController.connectToSheets(session.getSpreadsheetId());
 
-        // Message list setup
+        /**
+         * MessageController setup.
+         * This controller manages the messages imported from Google Sheets.
+         */
         List<Message> messages = session.getImportedMessages();
         if (messages == null || messages.isEmpty()) {
             messages = new ArrayList<>();
         }
         MessageController messageController = MessageController.getInstance(sheetsController, messages);
 
-        // PrinterController setup
+        /**
+         * PrinterController setup.
+         * This controller manages the printing functionality of the application.
+         */
         PrinterController printerController = PrinterController.getInstance();
         try {
             printerController.setPrintServiceByName(session.getSelectedPrinter());
         } catch (PrintersNotFoundException e) {
             // Optionally show error modal here
         }
-        // --- End Controller and Service Setup ---
 
+        // Update printQueue with QUEUED messages
+        Queue<Message> printQueue = session.getImportedMessages().stream()
+        .filter(message -> message.getStatus() == MessageStatus.QUEUED)
+        .collect(Collectors.toCollection(LinkedList::new));
+        printerController.setPrintQueue(printQueue);
+        
+        // --- End Controller and Service Setup ---
+        
         // Load FXML and get controller
         FXMLLoader loader = new FXMLLoader(getClass().getResource("/main.fxml"));
         Parent root = loader.load();
         MainGuiController controller = loader.getController();
-
+        
         // Inject dependencies into controller
         controller.setSessionProfileController(sessionProfileController);
         controller.setSheetsController(sheetsController);
@@ -115,13 +139,13 @@ public class MainGui extends Application {
         controller.setMessageController(messageController);
         controller.setSessionProfile(session);
         controller.postInit();
-
+        
         Scene scene = new Scene(root);
         primaryStage.setResizable(false);
         primaryStage.setTitle("Leiriposti");
         primaryStage.setScene(scene);
+        mainStage = primaryStage; // Set mainStage BEFORE show()
         primaryStage.show();
-        mainStage = primaryStage;
 
         // If --debug open a console GUI
         String[] args = getParameters().getRaw().toArray(new String[0]);
@@ -129,6 +153,7 @@ public class MainGui extends Application {
             LOGGER.debug("Debug mode enabled. Opening console GUI...");
             consoleStage = new Stage();
             ConsoleGui.start(consoleStage);
+            MainGui.isDebug = true; // Enable debug mode in the application
         } else {
             LOGGER.info("Starting main GUI without debug mode.");
         }
@@ -148,6 +173,18 @@ public class MainGui extends Application {
     public void stop() throws Exception {
         LOGGER.info("Application is closing. Performing cleanup...");
 
+        mainStage.getScene().getRoot().setDisable(true); // Disable the main GUI to prevent user interaction during cleanup
+
+        Platform.runLater(() -> {
+            LOGGER.debug("Stopping message polling...");
+            MainGuiController controller = (MainGuiController) mainStage.getScene().getRoot().getUserData();
+            if (controller != null) {
+                controller.stopPolling(); // Stop message polling in the controller
+            } else {
+                LOGGER.warn("MainGuiController is not set. Cannot stop message polling.");
+            }
+        });
+
         /**
         * Controller instances used in the MainGui.
         * These controllers are responsible for managing different aspects of the application,
@@ -162,7 +199,7 @@ public class MainGui extends Application {
         SessionProfile sessionProfile = sessionProfileController.getSessionProfile();
         sessionProfile.setLastRow(sheetsController.getLatestRow()); // Update the last row number
         sessionProfile.setSelectedPrinter(printerController.getDefaultPrintServiceName()); // Update the selected printer
-        sessionProfile.setPrintQueue(printerController.getPrintQueue()); // Update the print queue
+        // sessionProfile.setPrintQueue(printerController.getPrintQueue()); // Update the print queue
         sessionProfile.setImportedMessages(messageController.getMessages()); // Update the imported messages
         sessionProfile.setSpreadsheetId(sheetsController.getSheetsId()); // Update the spreadsheet ID
 
@@ -175,6 +212,12 @@ public class MainGui extends Application {
             LOGGER.debug("Closing console GUI...");
             consoleStage.close(); // Close the console GUI if it was opened
         }
+
+        LOGGER.info("Cleanup completed. Application is closing.");
+
+        // Exit the application
+        Platform.exit(); // Exit the JavaFX application
+        System.exit(0); // Ensure the application exits completely
     }
 
     /**
