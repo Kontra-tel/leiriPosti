@@ -2,7 +2,6 @@ package tel.kontra.leiriposti.gui;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
-import java.time.LocalDate;
 import java.util.List;
 
 import org.apache.logging.log4j.LogManager;
@@ -11,8 +10,9 @@ import com.google.api.client.auth.oauth2.Credential;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.services.sheets.v4.Sheets;
 
+import io.opencensus.metrics.export.Value;
+import javafx.application.Platform;
 import javafx.event.ActionEvent;
-import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
@@ -21,7 +21,13 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ProgressIndicator;
+import javafx.scene.control.SelectionMode;
+import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
 import javafx.stage.Stage;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.MenuItem;
 
 import tel.kontra.leiriposti.controller.MessageController;
 import tel.kontra.leiriposti.controller.PrinterController;
@@ -29,13 +35,14 @@ import tel.kontra.leiriposti.controller.SessionProfileController;
 import tel.kontra.leiriposti.controller.SheetsController;
 import tel.kontra.leiriposti.model.Message;
 import tel.kontra.leiriposti.model.MessageStatus;
+import tel.kontra.leiriposti.model.PrintersNotFoundException;
 import tel.kontra.leiriposti.model.SessionProfile;
 import tel.kontra.leiriposti.model.SheetsNotFoundException;
 import tel.kontra.leiriposti.service.GoogleAuth;
 import tel.kontra.leiriposti.service.GoogleServiceFactory;
-import tel.kontra.leiriposti.view.MainGui;
 import tel.kontra.leiriposti.view.PrinterGui;
 import tel.kontra.leiriposti.view.SheetIdMissingGui;
+import tel.kontra.leiriposti.view.ValueUpdateEvent;
 
 /**
  * MainGuiController class is responsible for managing the main GUI of the application.
@@ -55,19 +62,32 @@ public class MainGuiController {
      * Controllers used in the MainGuiController.
      * These controllers are responsible for managing different aspects of the application
      * 
-     * The controllers are initialized in the initialize() method to ensure they are ready for use.
+     * @see SessionProfileController
+     * @see PrinterController
+     * @see SheetsController
+     * @see MessageController
+     *
+     * The controller are initialized in the MainGui class and injected into this controller.
+     * This allows for better separation of concerns and makes the code more modular.
      */
     private SessionProfileController sessionProfileController;
     private PrinterController printerController;
     private SheetsController sheetsController;
     private MessageController messageController;
 
+    // Add setters for dependency injection from MainGui
+    public void setSessionProfileController(SessionProfileController c) { this.sessionProfileController = c; }
+    public void setSheetsController(SheetsController c) { this.sheetsController = c; }
+    public void setPrinterController(PrinterController c) { this.printerController = c; }
+    public void setMessageController(MessageController c) { this.messageController = c; }
+    public void setSessionProfile(SessionProfile s) { /* Optionally store session if needed */ }
+
     /**
      * FXML components for the Main GUI.
      * These components are defined in the FXML file and are linked to this controller.
      */
     @FXML
-    private ListView<String> messageList; // ListView for displaying messages
+    private ListView<Message> messageList; // ListView for displaying messages
 
     @FXML
     private ChoiceBox<MessageStatus> showMessageChoice; // ChoiceBox for filtering messages
@@ -117,17 +137,10 @@ public class MainGuiController {
     @FXML
     private void onGetMessages() {
         LOGGER.debug("onGetMessages", LOGGER);
-        
+        printingBtn.setDisable(true); // Disable the button while fetching messages
+
         // Get messages from the MessageController
         new Thread(() -> {
-
-            // Set the progress indicator to indeterminate state
-            messageProgress.setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
-            messageProgress.setVisible(true);
-
-            // Disable the button to prevent multiple clicks
-            printingBtn.setDisable(true);
-
             try {
                 messageController.getNewMessages();
             } catch (SheetsNotFoundException e) {
@@ -138,9 +151,6 @@ public class MainGuiController {
 
             // Re-enable the button after fetching messages
             printingBtn.setDisable(false);
-
-            // Hide the progress indicator
-            messageProgress.setVisible(false);
         }).start();
 
         // Render the message list with the current filter
@@ -149,7 +159,7 @@ public class MainGuiController {
     }
 
     @FXML
-    private void onFilterChnage() {
+    private void onFilterChange(ActionEvent event) {
         LOGGER.debug("onFilterChange()", LOGGER);
         
         // Get the selected filter from the ChoiceBox
@@ -157,6 +167,21 @@ public class MainGuiController {
         
         // Render the message list with the selected filter
         renderMessageList(filter);
+    }
+
+    /**
+     * When the user holds down the Shift key, change messageList
+     * selection to multiple selection mode.
+     * This allows the user to select multiple messages for actions like printing.
+     */
+    @FXML
+    private void onShiftSelection(KeyEvent event) { 
+        // Check if the Shift key is pressed
+        if (event.isShiftDown()) {
+            messageList.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+        } else {
+            messageList.getSelectionModel().setSelectionMode(SelectionMode.SINGLE);
+        }
     }
 
     @FXML
@@ -201,82 +226,67 @@ public class MainGuiController {
      * @throws IOException 
      */
     @FXML
-    private void initialize() throws IOException, GeneralSecurityException {
+    private void initialize() {
         LOGGER.info("Initializing MainGuiController...");
-        
-        // Do google authentication
-        NetHttpTransport httpTransport = new NetHttpTransport();
-        Credential credentials = GoogleAuth.getCredentials(httpTransport);
 
-        // Check if credentials are null
-        if (credentials == null) {
-            LOGGER.error("Credentials are null. Exiting application.");
-            System.exit(1); // Exit the application if credentials are not available
-        }
+        // Check if the SheetsController is initialized
 
-        GoogleServiceFactory googleServiceFactory = GoogleServiceFactory.getInstance(credentials);
-        Sheets sheetsService = googleServiceFactory.getSheetsService();
+        // Only UI setup and event handler binding here
+        showMessageChoice.getItems().addAll(
+            MessageStatus.ALL,
+            MessageStatus.NOT_PRINTED,
+            MessageStatus.QUEUED,
+            MessageStatus.PRINTED,
+            MessageStatus.ERROR
+        );
 
-        // Initialize SheetsController with the Google Sheets service
-        sheetsController = SheetsController.getInstance();
-        sheetsController.initialize(sheetsService);
-
-        // Init controllers
-        sessionProfileController = SessionProfileController.getInstance();
-        SessionProfile session = sessionProfileController.getSessionProfile();
-        LOGGER.info("Session Profile loaded: " + session.getSessionName());
-
-        // Get messages from the session profile
-        List<Message> messages = session.getImportedMessages();
-
-        if (messages == null || messages.isEmpty()) {
-            LOGGER.warn("No messages found in the session profile. Initializing with an empty list.");
-            messages = new java.util.ArrayList<>(); // Use a mutable list!
-        } else {
-            LOGGER.info("Messages loaded from session profile: " + messages.size() + " messages.");
-        }
-
-        // Initialize MessageController
-        messageController = MessageController.getInstance(sheetsController, messages);
-
-        // Check if the session has a spreadsheet ID
-        if (session.getSpreadsheetId() == null || session.getSpreadsheetId().isEmpty()) {
-            
-            // Open a dialog for the user to enter the spreadsheet ID
-            LOGGER.warn("Spreadsheet ID is missing. Opening dialog to request it from the user.");
-            onSpreadSheetMissing();
-
-            // If the spreadsheet ID is missing exit application
-            if( session.getSpreadsheetId() == null || session.getSpreadsheetId().isEmpty()) {
-                LOGGER.error("Spreadsheet ID is still missing after dialog. Exiting application.");
-                System.exit(1); // Exit the application if the spreadsheet ID is still missing
-            }
-
-        } else {
-            LOGGER.info("Connecting to Google Sheets with ID: " + session.getSpreadsheetId());
-        }
-
-        // Initialize SheetsController with the session's spreadsheet ID
-        sheetsController = SheetsController.getInstance();
-        sheetsController.connectToSheets(session.getSpreadsheetId());
-
-        // Printer
-        printerController = PrinterController.getInstance();
-
-        LOGGER.info("Connected to printer: " + printerController.getDefaultPrintServiceName()); // Log the default printer name
-        
-        // Update GUI labels with printer and sheets information
-        printerInfo.setText("Printer - " + printerController.getDefaultPrintServiceName());
-        sheetsInfo.setText("Sheets - " + sheetsController.getSheetName());
-
-        /**
-         * Populate showMessageChoice with options.
-         * This ChoiceBox allows the user to filter messages based on their status.
-         * 
-         * @see MessageStatus
-         */
-        renderMessageList(MessageStatus.ALL); // Render the message list with all messages
+        showMessageChoice.setValue(MessageStatus.ALL);
+        showMessageChoice.setOnAction(this::onFilterChange);
+        messageList.setOnKeyPressed(this::onShiftSelection);
+        messageList.setOnMouseClicked(this::messageSelectionContextMenu);
     }
+
+    /**
+     * Call this after all dependencies are injected to finish setup.
+     */
+    public void postInit() {
+        renderMessageList(MessageStatus.ALL);
+    }
+
+    /**
+     * Polling thread for checking new messages in Google Sheets.
+     * This thread runs in the background and checks for new messages every 5 seconds.
+     */
+    private boolean isPolling = false; // Flag to check if the polling thread is running
+    private Thread pollThread = new Thread(() -> {
+        LOGGER.info("Starting polling thread for new messages...");
+
+        while (isPolling) {
+            try {
+                // Poll for new messages every 5 seconds
+                Thread.sleep(5000); // Sleep for 5 seconds
+
+                // Retrieve new message count from SheetsController
+                int newMessageCount = sheetsController.checkNewMessages();
+
+                if (newMessageCount > 0) {
+                    LOGGER.info("New messages found: " + newMessageCount);
+                    onMenuBarMessageUpdate(new ValueUpdateEvent("New messages found: " + newMessageCount)); // Fire an event to update the menubar message
+                } else {
+                    LOGGER.info("No new messages.");
+                    onMenuBarMessageUpdate(new ValueUpdateEvent("No new messages")); // Fire an event to update the menubar message
+                }
+
+            } catch (InterruptedException e) {
+                LOGGER.error("Polling thread interrupted: " + e.getMessage(), e);
+                Thread.currentThread().interrupt(); // Restore the interrupted status
+            } catch (SheetsNotFoundException e) {
+                LOGGER.error("Error retrieving new messages: " + e.getMessage(), e);
+            }
+        }
+
+        LOGGER.info("Polling thread stopped.");
+    });
 
     /**
      * This method is called when the spreadsheet ID is missing.
@@ -291,6 +301,83 @@ public class MainGuiController {
 
         } catch (Exception e) {
             LOGGER.error("Error loading Initialize GUI: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Handles the context menu for message selection in the ListView.
+     * This method is triggered when the user right-clicks on a message in the ListView.
+     * It displays a context menu with options to delete, add to queue, or remove from queue.
+     * 
+     * @param event The mouse event that triggered this method.
+     */
+    private ContextMenu contextMenu = new ContextMenu(); // Context menu for message selection
+
+    /**
+     * Handles the context menu for message selection in the ListView.
+     * This method is triggered when the user right-clicks on a message in the ListView.
+     * It displays a context menu with options to delete, add to queue, or remove from queue.
+     * 
+     * @param event
+     */
+    private void messageSelectionContextMenu(MouseEvent event) {
+        if (event.getButton() == MouseButton.SECONDARY) { // Check if the right mouse button was clicked
+            LOGGER.debug("Right-click detected on message list.");
+
+            // Get the selected item or items from the ListView
+            List<Message> selectedItems = messageList.getSelectionModel().getSelectedItems();
+            if (!selectedItems.isEmpty()) {
+                LOGGER.debug("Selected items: " + selectedItems);
+                
+                /**
+                 * Context menu with options for the selected messages.
+                 * DELETE, ADD TO QUEUE, REMOVE FROM QUEUE
+                 */
+                // Init the context menu if it is not already initialized
+                if (contextMenu.getItems().isEmpty()) {
+                    LOGGER.debug("Initializing context menu for message selection.");
+
+                    // Delete menu item
+                    MenuItem deleteItem = new MenuItem("Delete");
+                    deleteItem.setOnAction(e -> {
+                        for (Message selected : selectedItems) {
+                            selected.setStatus(MessageStatus.DELETED); // Set the status to DELETED
+                        }
+                        renderMessageList(showMessageChoice.getValue());
+                    });
+
+                    // Add to Queue menu item
+                    MenuItem addToQueueItem = new MenuItem("Add to Queue");
+                    addToQueueItem.setOnAction(e -> {
+                        for (Message selected : selectedItems) {
+                            selected.setStatus(MessageStatus.QUEUED); // Set the status to QUEUED
+                        }
+                        renderMessageList(showMessageChoice.getValue());
+                    });
+
+                    // Remove from Queue menu item
+                    MenuItem removeFromQueueItem = new MenuItem("Remove from Queue");
+                    removeFromQueueItem.setOnAction(e -> {
+                        for (Message selected : selectedItems) {
+                            selected.setStatus(MessageStatus.NOT_PRINTED); // Set the status to NOT_PRINTED
+                        }
+                        renderMessageList(showMessageChoice.getValue());
+                    });
+
+                    contextMenu.getItems().addAll(removeFromQueueItem, addToQueueItem, deleteItem);
+                    contextMenu.setAutoHide(true); // Automatically hide the context menu when an item is selected
+                    contextMenu.setAutoFix(true); // Automatically fix the context menu position
+
+                    // Clear the selection when the context menu is hidden
+                    contextMenu.setOnHiding(e -> {
+                        LOGGER.debug("Context menu hidden.");
+                        messageList.getSelectionModel().clearSelection(); // Clear the selection when the context menu is hidden
+                    });
+                }
+                LOGGER.debug("Showing context menu at mouse location: " + event.getScreenX() + ", " + event.getScreenY());
+                // Show the context menu at the mouse location
+                contextMenu.show(messageList, event.getScreenX(), event.getScreenY());
+            }
         }
     }
 
@@ -326,22 +413,16 @@ public class MainGuiController {
 
         // Populate the ListView with the filtered messages
         for (Message message : messages) {
-            String displayText = "[" + message.getRecipient() + "] " + message.getSubject() + " - " + message.getStatus();
-            messageList.getItems().add(displayText);
+            messageList.getItems().add(message);
         }
     }
 
     /**
-     * Event handlers for the GUI components.
+     * Updates the menubar message with the new value from a ValueUpdateEvent.
+     * This method is thread-safe and can be called from any thread.
+     * @param event The ValueUpdateEvent containing the new value.
      */
-    // Event handler for updating labels in the GUI
-    public EventHandler<ActionEvent> valueUpdateEvent = event -> {
-        LOGGER.debug("Value update event triggered: " + event);
-
-        // Update printer information label
-        printerInfo.setText("Printer - " + printerController.getDefaultPrintServiceName());
-
-        // Update sheets information label
-        sheetsInfo.setText("Sheets - " + sheetsController.getSheetName());
-    };
+    public void onMenuBarMessageUpdate(ValueUpdateEvent event) {
+        Platform.runLater(() -> menubarMessage.setText(event.getValue()));
+    }
 }

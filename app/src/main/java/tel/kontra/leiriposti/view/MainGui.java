@@ -1,6 +1,8 @@
 package tel.kontra.leiriposti.view;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -10,11 +12,20 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+
 import tel.kontra.leiriposti.controller.MessageController;
 import tel.kontra.leiriposti.controller.PrinterController;
 import tel.kontra.leiriposti.controller.SessionProfileController;
 import tel.kontra.leiriposti.controller.SheetsController;
+import tel.kontra.leiriposti.model.Message;
 import tel.kontra.leiriposti.model.SessionProfile;
+import tel.kontra.leiriposti.model.PrintersNotFoundException;
+import tel.kontra.leiriposti.service.GoogleAuth;
+import tel.kontra.leiriposti.service.GoogleServiceFactory;
+import com.google.api.client.auth.oauth2.Credential;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.services.sheets.v4.Sheets;
+import tel.kontra.leiriposti.gui.MainGuiController;
 
 /**
  * MainGui class is responsible for launching the main GUI of the application.
@@ -40,28 +51,89 @@ public class MainGui extends Application {
      */
     @Override
     public void start(Stage primaryStage) throws Exception {
-        Parent root = FXMLLoader.load(getClass().getResource("/main.fxml"));
+        // --- Controller and Service Setup ---
+        // Get session profile
+        SessionProfileController sessionProfileController = SessionProfileController.getInstance();
+        SessionProfile session = sessionProfileController.getSessionProfile();
+
+        // Google API setup
+        NetHttpTransport httpTransport = new NetHttpTransport();
+        Credential credentials = GoogleAuth.getCredentials(httpTransport);
+        if (credentials == null) {
+            LOGGER.error("Credentials are null. Exiting application.");
+            System.exit(1);
+        }
+        GoogleServiceFactory googleServiceFactory = GoogleServiceFactory.getInstance(credentials);
+        Sheets sheetsService = googleServiceFactory.getSheetsService();
+
+        // SheetsController setup
+        int lastRow = session.getLastRow();
+        SheetsController sheetsController = (lastRow > 0)
+            ? SheetsController.getInstance(lastRow)
+            : SheetsController.getInstance();
+
+        // If spreadsheetId is missing, open the GUI for setting it up
+        if (session.getSpreadsheetId() == null || session.getSpreadsheetId().isEmpty()) {
+            LOGGER.warn("Spreadsheet ID is missing. Opening setup dialog.");
+            SheetIdMissingGui.start(new Stage());
+            // After dialog, reload the session in case it was updated
+            session = sessionProfileController.getSessionProfile();
+            if (session.getSpreadsheetId() == null || session.getSpreadsheetId().isEmpty()) {
+                LOGGER.error("Spreadsheet ID is still missing after setup dialog. Exiting application.");
+                System.exit(1);
+            }
+        }
+
+        sheetsController.initialize(sheetsService);
+        sheetsController.connectToSheets(session.getSpreadsheetId());
+
+        // Message list setup
+        List<Message> messages = session.getImportedMessages();
+        if (messages == null || messages.isEmpty()) {
+            messages = new ArrayList<>();
+        }
+        MessageController messageController = MessageController.getInstance(sheetsController, messages);
+
+        // PrinterController setup
+        PrinterController printerController = PrinterController.getInstance();
+        try {
+            printerController.setPrintServiceByName(session.getSelectedPrinter());
+        } catch (PrintersNotFoundException e) {
+            // Optionally show error modal here
+        }
+        // --- End Controller and Service Setup ---
+
+        // Load FXML and get controller
+        FXMLLoader loader = new FXMLLoader(getClass().getResource("/main.fxml"));
+        Parent root = loader.load();
+        MainGuiController controller = loader.getController();
+
+        // Inject dependencies into controller
+        controller.setSessionProfileController(sessionProfileController);
+        controller.setSheetsController(sheetsController);
+        controller.setPrinterController(printerController);
+        controller.setMessageController(messageController);
+        controller.setSessionProfile(session);
+        controller.postInit();
+
         Scene scene = new Scene(root);
-        primaryStage.setResizable(false); // Disable resizing of the window
+        primaryStage.setResizable(false);
         primaryStage.setTitle("Leiriposti");
         primaryStage.setScene(scene);
         primaryStage.show();
-        mainStage = primaryStage; // Store the primary stage for later use
+        mainStage = primaryStage;
 
         // If --debug open a console GUI
         String[] args = getParameters().getRaw().toArray(new String[0]);
-
         if( args.length > 0 && args[0].equals("--debug")) {
             LOGGER.debug("Debug mode enabled. Opening console GUI...");
-            consoleStage = new Stage(); // Create a new stage for the console GUI
-            ConsoleGui.start(consoleStage); // Open the console GUI if --debug is passed
+            consoleStage = new Stage();
+            ConsoleGui.start(consoleStage);
         } else {
             LOGGER.info("Starting main GUI without debug mode.");
         }
 
         // Update program title with session name and current weekday
-        SessionProfile session = SessionProfileController.getInstance().getSessionProfile(); // Get the current session profile
-        // Set MainStage title to include session name and weekday
         String dayOfWeek = LocalDate.now().getDayOfWeek().toString();
         primaryStage.setTitle("Leiriposti - " + session.getSessionName() + " - " + dayOfWeek);
     }
