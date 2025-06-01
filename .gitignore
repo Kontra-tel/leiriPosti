@@ -28,6 +28,9 @@
 hs_err_pid*
 replay_pid*
 
+# Ignore Java serialized object files
+*.ser
+
 ### VisualStudioCode ###
 .vscode/*
 !.vscode/settings.json
