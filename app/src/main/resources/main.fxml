@@ -25,17 +25,17 @@
             </ListView>
             <AnchorPane prefHeight="330.0" prefWidth="356.0">
                <children>
-                  <Label layoutX="14.0" layoutY="41.0" prefHeight="25.0" prefWidth="68.0" text="Filter" AnchorPane.leftAnchor="14.0" AnchorPane.topAnchor="41.0" />
-                  <ChoiceBox fx:id="showMessageChoice" layoutX="14.0" layoutY="66.0" onInputMethodTextChanged="#onFilterChange" prefHeight="25.0" prefWidth="70.0" AnchorPane.leftAnchor="14.0" AnchorPane.topAnchor="66.0">
+                  <Label alignment="CENTER" contentDisplay="CENTER" layoutX="33.0" layoutY="41.0" prefHeight="25.0" prefWidth="68.0" text="Filter" AnchorPane.leftAnchor="33.0" AnchorPane.topAnchor="41.0" />
+                  <ChoiceBox fx:id="showMessageChoice" layoutX="7.0" layoutY="66.0" prefHeight="25.0" prefWidth="120.0" AnchorPane.leftAnchor="7.0" AnchorPane.topAnchor="66.0">
                      <tooltip>
                         <Tooltip text="Which messages to show on the list" />
                      </tooltip></ChoiceBox>
-                  <ProgressBar fx:id="printingProgressbar" layoutX="38.0" layoutY="239.0" prefHeight="18.0" prefWidth="215.0" />
-                  <Label fx:id="printStatus" alignment="CENTER" layoutX="67.0" layoutY="214.0" prefHeight="25.0" prefWidth="157.0" text="None" />
-                  <Label fx:id="latestMessage" layoutX="12.0" layoutY="113.0" prefHeight="25.0" prefWidth="267.0" text="Latest Message: none" />
-                  <Button layoutX="132.0" layoutY="66.0" mnemonicParsing="false" onAction="#onGetMessages" text="Check for messages" />
-                  <Label fx:id="queValue" layoutX="12.0" layoutY="146.0" prefHeight="25.0" prefWidth="267.0" text="Messages in queue: none" />
-                  <Button fx:id="printingBtn" layoutX="84.0" layoutY="266.0" mnemonicParsing="false" onAction="#doPrint" prefHeight="25.0" prefWidth="122.0" text="Start printing" />
+                  <ProgressBar fx:id="printingProgressbar" layoutX="39.0" layoutY="268.0" prefHeight="18.0" prefWidth="215.0" />
+                  <Label fx:id="printStatus" alignment="CENTER" layoutX="67.0" layoutY="243.0" prefHeight="25.0" prefWidth="157.0" text="None" />
+                  <Label fx:id="latestMessage" alignment="CENTER" layoutX="12.0" layoutY="171.0" prefHeight="25.0" prefWidth="267.0" text="Latest Message: none" />
+                  <Button layoutX="160.0" layoutY="66.0" mnemonicParsing="false" onAction="#onGetMessages" prefWidth="120.0" text="Load messages" />
+                  <Label fx:id="queValue" alignment="CENTER" layoutX="13.0" layoutY="198.0" prefHeight="25.0" prefWidth="267.0" text="Messages in queue: none" />
+                  <Button fx:id="printingBtn" layoutX="84.0" layoutY="292.0" mnemonicParsing="false" onAction="#doPrint" prefHeight="25.0" prefWidth="122.0" text="Start printing" />
                </children>
             </AnchorPane>
          </children>
