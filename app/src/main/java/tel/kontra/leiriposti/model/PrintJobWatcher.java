@@ -54,11 +54,21 @@ public class PrintJobWatcher extends PrintJobAdapter {
         }
     }
 
-    public synchronized void waitForDone() throws InterruptedException {
+    /**
+     * Waits for the print job to complete.
+     * This method blocks until the print job is done or an error occurs.
+     *
+     * @return The time in milliseconds that the print job took to complete.
+     * @throws InterruptedException if the current thread is interrupted while waiting.
+     */
+    public synchronized long waitForDone() throws InterruptedException {
         try {
             while (!doneFlag) {
                 wait();
             }
+            Date endTime = new Date();
+            return endTime.getTime() - startTime.getTime();
+
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt(); // Restore interrupted status
             throw e; // Re-throw the exception
