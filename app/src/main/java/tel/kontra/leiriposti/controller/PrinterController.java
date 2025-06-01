@@ -5,7 +5,11 @@ import java.awt.print.PrinterJob;
 import java.util.LinkedList;
 import java.util.Queue;
 
+import javax.print.DocFlavor;
+import javax.print.DocPrintJob;
+import javax.print.PrintException;
 import javax.print.PrintService;
+import javax.print.SimpleDoc;
 import javax.print.attribute.Attribute;
 import javax.print.attribute.HashPrintRequestAttributeSet;
 import javax.print.attribute.PrintRequestAttributeSet;
@@ -13,10 +17,17 @@ import javax.print.attribute.standard.Copies;
 import javax.print.attribute.standard.Sides;
 
 import org.apache.logging.log4j.Logger;
+
+import javafx.application.Platform;
+import javafx.scene.control.ProgressBar;
+
 import org.apache.logging.log4j.LogManager;
 
+import tel.kontra.leiriposti.event.EventBus;
+import tel.kontra.leiriposti.event.PrintingCompleteEvent;
 import tel.kontra.leiriposti.model.Message;
 import tel.kontra.leiriposti.model.MessageStatus;
+import tel.kontra.leiriposti.model.PrintJobWatcher;
 import tel.kontra.leiriposti.model.PrintableMessage;
 import tel.kontra.leiriposti.model.PrintersNotFoundException;
 
@@ -57,35 +68,9 @@ public class PrinterController {
      * It is used to manage the print jobs and ensure that we dont flood the printer with too many jobs at once.
      */
     private Queue<Message> printQueue;
-
+    private ProgressBar progressBar; // Progress bar for printing status
     private Boolean isPaused = false; // Flag to indicate if printing is paused
-
-    /**
-     * Runnable for printing thread.
-     * 
-     * This runnable is used to process the print queue and send messages to the printer.
-     * It runs in a separate thread to avoid blocking the main application thread.
-     */
-    private Runnable printThread = new Runnable() {
-        @Override
-        public void run() {
-            while (!printQueue.isEmpty() && !isPaused) { // Continue until the queue is empty or printing is paused
-                Message data = printQueue.poll(); // Get the next message from the queue
-                if (data != null) {
-                    try {
-                        sendToPrinter(data); // Send the message to the printer
-                    } catch (PrintersNotFoundException | PrinterException e) {
-                        LOGGER.error("Error sending message to printer: " + e.getMessage(), e); // Log any errors
-                    }
-                } else {
-                    LOGGER.warn("No more messages in the print queue."); // Log if there are no more messages in the queue
-                }
-            }
-            LOGGER.info("Print queue processing completed."); // Log when the print queue processing is completed
-            isPaused = true; // Set the isPaused flag to true to indicate that printing is paused
-        }
-    };
-
+    
     /**
      * Private constructor for PrinterController class.
      * It initializes the available print services and sets the default print service.
@@ -222,8 +207,8 @@ public class PrinterController {
 
         // Set message status to "PRINTING"
         message.setStatus(MessageStatus.QUEUED); // Set the status of the message to QUEUED
-
         printQueue.add(message); // Add the message to the print queue
+
         LOGGER.debug("Added message to print queue: " + message.getSubject()); // Log the addition of the message to the queue
     }
 
@@ -246,50 +231,30 @@ public class PrinterController {
      * 
      * @return Success code indicating the status of the printing operation.
      */
-    public void doPrint() {
-        
-        // Check if the print queue is empty
+    public void doPrint(ProgressBar progressBar) throws PrintersNotFoundException {
+        this.progressBar = progressBar; // Set the progress bar for printing status
+
         if (printQueue == null || printQueue.isEmpty()) {
-            LOGGER.info("Print queue is empty, nothing to print!"); // Log if the print queue is empty
-            return; // Exit the method if there are no messages to print
-        }
-        
-        // Set the isPaused flag to false to allow printing
-        isPaused = false; // Reset the isPaused flag to allow printing
-
-        // Start a new thread to process the print queue
-        if (printThread instanceof Thread) {
-            ((Thread) printThread).start(); // Start the print thread if it is an instance of Thread
+            LOGGER.warn("Print queue is empty!"); // Log a warning if the print queue is empty
+            return; // Exit if there are no messages to print
         }
 
-        LOGGER.info("Started printing from the queue, " + printQueue.size() + " messages in the queue.");
-        LOGGER.info("Using thread: " + Thread.currentThread().getName()); // Log the thread name used for printing
-    }
-
-    /**
-     * Pause the printing process.
-     * 
-     * This method sets the isPaused flag to true, which will stop the printing process when the current job is finished.
-     */
-    public void pausePrinting() {
-        
-        LOGGER.info("Pausing printing..."); // Log that printing is being paused
-
-        // Wait for the current print job to finish
-        if (printThread instanceof Thread) {
-            try {
-                ((Thread) printThread).join(); // Wait for the print thread to finish
-            } catch (InterruptedException e) {
-                LOGGER.error("Error while waiting for print thread to finish: " + e.getMessage(), e); // Log any errors
-            }
+        if (defaultPrintService == null) {
+            LOGGER.error("No default print service set!"); // Log an error if no default print service is set
+            throw new PrintersNotFoundException("No default print service set!"); // Throw exception if no default print service is set
         }
 
-        // Set the isPaused flag to true to stop further printing
-        isPaused = true; // Set the isPaused flag to true
-        
-        LOGGER.info("Printing paused."); // Log that printing has been paused
-        
-        return; // Exit the method after pausing printing
+        isPaused = false; // Set printing to active
+        LOGGER.debug("Starting printing process..."); // Log the start of the printing process
+
+        // Start the print thread to process the print queue
+        if( printThread == null || !printThread.isAlive()) {
+            printThread = new Thread(printProcess); // Create a new thread for printing
+            printThread.start(); // Start the print thread
+            LOGGER.debug("Print thread started."); // Log the start of the print thread
+        } else {
+            LOGGER.warn("Print thread is already running!"); // Log a warning if the print thread is already running
+        }
     }
 
     /**
@@ -304,49 +269,98 @@ public class PrinterController {
     }
 
     /**
-     * Send the next message in the print queue to the printer.
-     * 
-     * This method retrieves the next PrintableMessage from the print queue and sends it to the printer.
-     * If the print queue is empty, it does nothing.
-     * 
-     * This method will make the current thread wait until the print job is completed.
-     * this is done to ensure that we do not flood the printer with too many print jobs at once.
-     * 
-     * @throws PrintersNotFoundException If no printers are found.
-     * @throws PrinterException If an error occurs while printing.
+     * Thread used for printing messages.
+     * This thread processes the print queue and sends messages to the printer.
+     * It runs in a loop until the queue is empty or printing is paused.
      */
-    private void sendToPrinter(Message data) throws PrintersNotFoundException, PrinterException {
+    private Thread printThread; // Thread for printing messages
 
-        // Set the status of the message to PRINTING
-        data.setStatus(MessageStatus.PRINTING); // Set the status of the message to PRINTING
+    /**
+     * Runnable for processing the print queue.
+     * This runnable processes messages in the print queue and sends them to the printer.
+     * It handles the printing process, including creating print jobs and monitoring their completion.
+     */
+    private Runnable printProcess = () -> {
+        while (!printQueue.isEmpty() && !isPaused) { // Continue processing while the queue is not empty and printing is not paused
+            Message message = printQueue.poll(); // Get the next message from the print queue
+            
+            DocPrintJob printJob = defaultPrintService.createPrintJob(); // Create a print job from the default print service
+            PrintRequestAttributeSet pras = getPras(defaultPrintService); // Get the PrintRequestAttributeSet for the print service
+            PrintableMessage printableMessage = new PrintableMessage(message); // Create a PrintableMessage from the message
 
-        // Set attributes for the print job
-        PrintRequestAttributeSet pras = new HashPrintRequestAttributeSet();
-        pras.add(new Copies(2)); // Set the number of copies to 2
-        pras.add(Sides.DUPLEX);
+            PrintJobWatcher watcher = new PrintJobWatcher(printJob); // Create a PrintJobWatcher to monitor the print job
+            
+            try {
+                printJob.print(new SimpleDoc(printableMessage, DocFlavor.SERVICE_FORMATTED.PRINTABLE, null), pras); // Send the printable message to the printer
+                LOGGER.debug("Sent message to printer: " + message.getSubject()); // Log the sending of the message to the printer
+                
+                message.setStatus(MessageStatus.PRINTING); // Set the status of the message to PRINTING
+                
+                // Update the progress bar on the JavaFX Application Thread
+                Platform.runLater(() -> {
+                    if (progressBar != null) {
+                        progressBar.setProgress((double) (printQueue.size() + 1) / printQueue.size()); // Update the progress bar
+                    }
+                });
 
-        // Create a PrinterJob instance and set the printable object
-        PrinterJob job = PrinterJob.getPrinterJob();
-        job.setPrintable(new PrintableMessage(data));
+                // Make the printThread wait until the print job is completed
+                watcher.waitForDone();
+                LOGGER.debug("Print job completed for message: " + message.getSubject()); // Log the completion of the print job
 
-        // Set the print service to the default one
-        if (defaultPrintService != null) {
-            job.setPrintService(defaultPrintService); // Set the print service to the default one
-        } else {
-            throw new PrintersNotFoundException("No printer found!"); // No default print service set
+            } catch (PrintException e) {
+                LOGGER.error("Failed to print message: " + message.getSubject(), e); // Log an error if printing fails
+            } catch (InterruptedException e) {
+                LOGGER.error("Print job interrupted for message: " + message.getSubject(), e); // Log an error if the print job is interrupted
+            } finally {
+                // Set the status of the message to PRINTED after printing
+                message.setStatus(MessageStatus.PRINTED);
+            }
         }
+        // Notify listeners that printing is complete
+        Platform.runLater(() -> {
+            PrintingCompleteEvent event = new PrintingCompleteEvent("");
+            EventBus.getInstance().post(event); // Post the PrintingCompleteEvent to the EventBus
+        });
 
-        try {
-            job.print(pras); // Print the job with the specified attributes
-            LOGGER.info("Printing job: " + job.getJobName()); // Log the name of the print job
-            LOGGER.info("Printing to: " + defaultPrintService.getName()); // Log the name of the print service used
+        // Destroy the print thread after processing the queue
+        printThread = null; // Set the print thread to null to indicate that it is no longer running
+    };
 
-            job.wait(); // Wait for the print job to complete
-            data.setStatus(MessageStatus.PRINTED); // Set the status of the message to PRINTED after successful printing
-            LOGGER.info("Print job completed successfully for message: " + data.getSubject()); // Log successful printing
+    /**
+     * Get the PrintRequestAttributeSet for the given print service.
+     * This method creates a PrintRequestAttributeSet with default attributes
+     * such as number of copies and print side.
+     * 
+     * @param printService The print service for which to get the attributes.
+     * @return PrintRequestAttributeSet with default attributes.
+     */
+    private PrintRequestAttributeSet getPras(PrintService printService) {
+        PrintRequestAttributeSet pras = new HashPrintRequestAttributeSet(); // Create a new PrintRequestAttributeSet
+        pras.add(new Copies(1)); // Set the number of copies to 1
+        pras.add(Sides.ONE_SIDED); // Set the print side to one-sided
 
-        } catch (Exception e) {
-            LOGGER.error("Error printing: " + e.getMessage(), e); // Log the error
+        // Check if the print service supports duplex printing
+        if (printService.getAttributes().containsValue(Sides.DUPLEX)) {
+            pras.add(Sides.DUPLEX); // Add duplex printing if supported
+        }
+        return pras; // Return the PrintRequestAttributeSet
+    }
+
+    /**
+     * Remove a message from the print queue.
+     * 
+     * This method removes a message from the print queue if it exists.
+     * It sets the status of the message to NOT_PRINTED after removal.
+     * 
+     * @param message The message to remove from the print queue.
+     */
+    public void removeFromPrintQueue(Message message) {
+        if (printQueue != null && printQueue.contains(message)) {
+            printQueue.remove(message); // Remove the message from the print queue
+            message.setStatus(MessageStatus.NOT_PRINTED); // Set the status of the message to DELETED
+            LOGGER.debug("Removed message from print queue: " + message.getSubject()); // Log the removal of the message
+        } else {
+            LOGGER.warn("Message not found in print queue: " + message.getSubject()); // Log if the message is not found in the queue
         }
     }
 }
