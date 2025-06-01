@@ -2,14 +2,19 @@ package tel.kontra.leiriposti.controller;
 
 import tel.kontra.leiriposti.model.Message;
 import tel.kontra.leiriposti.model.SheetsNotFoundException;
-import tel.kontra.leiriposti.service.GoogleServiceFactory;
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.api.services.sheets.v4.Sheets;
+
+//TODO: Make range dynamic, so that it can be used for multiple sheets
 
 /**
  * SheetsController class is responsible for managing the Google Sheets API service.
@@ -18,7 +23,7 @@ import com.google.api.services.sheets.v4.Sheets;
  * Im not happy with this way of doing things as it is not very flexible as everything is hardcoded.
  * I might change this in the future to possibly use a database or create the sheets and forms dynamically.
  * 
- * @version 0.5
+ * @version 0.6
  * @since 0.1
  * 
  * @author Markus
@@ -33,26 +38,58 @@ public class SheetsController {
     private String spreadsheetId; // Spreadsheet ID
     private String sheetName; // Sheet name
 
+    private int latestRow; // Latest row number in the spreadsheet
+
     /**
      * Private constructor for SheetsController.
      * Initializes the Sheets API service and sets the spreadsheet ID.
-     * 
-     * @param spreadsheetId The ID of the Google Sheets spreadsheet to be accessed.
      */
-    private SheetsController() {
+    private SheetsController(int lastRow) {
+
+        // Check if lastRow is less than 2, if so, set it to 2
+        if (lastRow < 2) {
+            LOGGER.warn("Last row number is less than 2, setting it to 2.");
+            lastRow = 2; // Set to 2 to avoid issues with empty sheets
+        }
+
+        this.latestRow = lastRow; // Set the latest row number
     }
 
     /**
      * Get the singleton instance of SheetsController.
-     * 
-     * @param spreadsheetId The ID of the Google Sheets spreadsheet to be accessed.
      * @return The singleton instance of SheetsController.
      */
     public static synchronized SheetsController getInstance() {
         if (instance == null) {
-            instance = new SheetsController();
+            instance = new SheetsController(2);
         }
         return instance;
+    }
+
+    /**
+     * Get the singleton instance of SheetsController with a specified last row.
+     * 
+     * @param lastRow The last row number to be set in the controller.
+     * @return The singleton instance of SheetsController.
+     */
+    public static synchronized SheetsController getInstance(int lastRow) {
+        if (instance == null) {
+            instance = new SheetsController(lastRow);
+        } else {
+            instance.latestRow = lastRow; // Update the latest row if instance already exists
+        }
+        return instance;
+    }
+
+    /**
+     * Initializes the SheetsController by connecting to the Google Sheets API.
+     * 
+     * @throws SheetsNotFoundException If the Sheets service is not found.
+     * @throws GeneralSecurityException If there is a security issue while connecting to the API.
+     * @throws IOException If there is an error while connecting to the API.
+     */
+    public void initialize(Sheets sheetsService) {
+        this.sheetsService = sheetsService; // Set the Sheets service instance
     }
 
     /**
@@ -60,22 +97,9 @@ public class SheetsController {
      * 
      * @param spreadsheetId The ID of the Google Sheets spreadsheet to be accessed.
      */
-    public void connectToSheets(String spreadsheetId) {
+    public synchronized void connectToSheets(String spreadsheetId) {
         
-        // Check if service is already initialized
-        if (sheetsService != null) {
-            sheetsService = null; // Reset the service if already initialized
-            LOGGER.info("Sheets service reset.");
-        }
-
         this.spreadsheetId = spreadsheetId; // Set the spreadsheet ID
-    
-        try {
-            sheetsService = GoogleServiceFactory.getInstance().getSheetsService(); // Initialize the Sheets API service
-        } catch (Exception e) {
-            System.err.println("Error connecting to Google Sheets: " + e.getMessage());
-            e.printStackTrace();
-        }
         
         // Get the first sheet name dynamically
         try {
@@ -91,7 +115,48 @@ public class SheetsController {
             e.printStackTrace();
         }
         LOGGER.info("Connected to Google Sheets with ID: " + spreadsheetId);
+    }
 
+    /**
+     * Validates the provided spreadsheet ID.
+     * Checks if the ID is not null or empty, matches the expected format,
+     * and can be accessed via the Google Sheets API.
+     * 
+     * @param spreadsheetId The ID of the Google Sheets spreadsheet to be validated.
+     * @return true if the spreadsheet ID is valid, false otherwise.
+     */
+    public boolean isValidSpreadsheetId(String spreadsheetId) {
+        
+        // Check if the spreadsheet ID is a valid Google Sheets ID
+        try {
+            sheetsService.spreadsheets()
+                .get(spreadsheetId)
+                .execute();
+            LOGGER.info("Valid spreadsheet ID: " + spreadsheetId);
+            return true; // Valid ID
+        } catch (Exception e) {
+            LOGGER.info("Invalid spreadsheet ID: " + spreadsheetId);
+            LOGGER.debug("Error validating spreadsheet ID: " + e.getMessage());
+            return false; // Invalid ID
+        }
+    }
+    
+    /**
+     * Checks if the SheetsController is initialized.
+     * 
+     * @return true if the SheetsController is initialized, false otherwise.
+     */
+    public boolean isInitialized() {
+        return sheetsService != null;
+    }
+
+    /**
+     * Checks if the SheetsController is connected to a Google Sheets spreadsheet.
+     * 
+     * @return true if connected, false otherwise.
+     */
+    public synchronized boolean isConnected() {
+        return sheetsService != null && spreadsheetId != null && !spreadsheetId.isEmpty();
     }
 
     /**
@@ -99,7 +164,7 @@ public class SheetsController {
      * 
      * @return The ID of the Google Sheets spreadsheet.
      */
-    public String getSheetsId() {
+    public synchronized String getSheetsId() {
         return spreadsheetId;
     }
 
@@ -108,7 +173,7 @@ public class SheetsController {
      * 
      * @return The name of the first sheet in the spreadsheet.
      */
-    public String getSheetName() {
+    public synchronized String getSheetName() {
         return sheetName;
     }
 
@@ -162,11 +227,91 @@ public class SheetsController {
                 );
             }
 
+            // Update the latest row if the retrieved row is greater than the current latestRow
+            if (row > latestRow) {
+                latestRow = row; // Update the latest row number
+            }
+
         } catch (Exception e) {
             LOGGER.error("Error retrieving message: " + e.getMessage());
             e.printStackTrace();
         }
 
         return null;
+    }
+
+    /**
+     * Retrieves the latest row number from the spreadsheet.
+     * 
+     * @return The latest row number in the spreadsheet.
+     */
+    public int getLatestRow() {
+        return latestRow;
+    }
+
+    /**
+     * Gets the number of rows in the spreadsheet.
+     * 
+     * @return The number of rows in the spreadsheet.
+     * @throws SheetsNotFoundException If the Sheets service is not initialized.
+     */
+    public int getNumRows() throws SheetsNotFoundException {
+        if (sheetsService == null) {
+            LOGGER.error("Sheets service is not initialized.");
+            throw new SheetsNotFoundException("Sheets service is not initialized.");
+        } 
+
+        try {
+            // Define the range to get the number of rows
+            String range = sheetName + "!A:E"; // A to E columns
+
+            List<List<Object>> values = sheetsService.spreadsheets().values()
+                .get(spreadsheetId, range)
+                .execute()
+                .getValues();
+
+            if (values != null) {
+                return values.size(); // Return the number of rows
+            }
+
+        } catch (Exception e) {
+            LOGGER.error("Error retrieving number of rows: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return 0; // Return 0 in case of an error
+    }
+
+    /**
+     * Retrieves new messages from the spreadsheet starting from the latest row.
+     * 
+     * @return A list of Message objects containing the new messages.
+     * @throws SheetsNotFoundException If the Sheets service is not initialized.
+     */
+    public List<Message> getNewMessages() throws SheetsNotFoundException {
+        if (sheetsService == null) {
+            LOGGER.error("Sheets service is not initialized.");
+            throw new SheetsNotFoundException("Sheets service is not initialized.");
+        }
+
+        try {
+            // Get the number of rows in the spreadsheet
+            int numRows = getNumRows();
+
+            // Retrieve messages from the spreadsheet
+            List<Message> messages = new ArrayList<>();
+            for (int i = latestRow; i <= numRows; i++) { // start from latestRow to numRows
+                if (i < 1) continue; // Skip invalid rows (e.g., row 0)
+                Message message = getMessage(i);
+                if (message != null) {
+                    messages.add(message);
+                }
+            }
+            return messages;
+
+        } catch (Exception e) {
+            LOGGER.error("Error retrieving new messages: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return Collections.emptyList(); // Return an empty list in case of an error
     }
 }
