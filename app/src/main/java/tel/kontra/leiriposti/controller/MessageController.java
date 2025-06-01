@@ -77,6 +77,14 @@ public class MessageController {
         return instance;
     }
 
+    /**
+     * Get the singleton instance of MessageController with a list of messages.
+     * 
+     * @param sheetsController The SheetsController instance to be used for Google Sheets API.
+     * @param messages The initial list of messages to be managed by the controller.
+     * @return The singleton instance of MessageController.
+     * if the controller is not initialized, it will throw an IllegalStateException.
+     */
     public static synchronized MessageController getInstance(SheetsController sheetsController, List<Message> messages) {
         
         // Check that sheetsController is initialized
@@ -100,6 +108,12 @@ public class MessageController {
         return messages;
     }
 
+    /**
+     * Get the list of messages filtered by status.
+     * 
+     * @param filter The status to filter messages by. If null, returns all messages.
+     * @return List of messages filtered by the specified status.
+     */
     public List<Message> getMessages(MessageStatus filter) {
         if (filter == null) {
             return messages; // Return all messages if no filter is applied
@@ -107,7 +121,15 @@ public class MessageController {
 
         // If filter is ALL, return all messages
         if (filter == MessageStatus.ALL) {
-            return messages; // Return all messages if filter is ALL
+
+            // Return all messages except DELETED
+            List<Message> filteredMessages = new ArrayList<>();
+            for (Message message : messages) {
+                if (message.getStatus() != MessageStatus.DELETED) {
+                    filteredMessages.add(message); // Add message to filtered list if it is not deleted
+                }
+            }
+            return filteredMessages; // Return the filtered list of messages
         }
 
         List<Message> filteredMessages = new ArrayList<>();
