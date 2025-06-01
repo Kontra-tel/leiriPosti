@@ -1,16 +1,13 @@
 package tel.kontra.leiriposti.gui;
 
+import java.awt.Desktop.Action;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.List;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import com.google.api.client.auth.oauth2.Credential;
-import com.google.api.client.http.javanet.NetHttpTransport;
-import com.google.api.services.sheets.v4.Sheets;
 
-import io.opencensus.metrics.export.Value;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -33,16 +30,15 @@ import tel.kontra.leiriposti.controller.MessageController;
 import tel.kontra.leiriposti.controller.PrinterController;
 import tel.kontra.leiriposti.controller.SessionProfileController;
 import tel.kontra.leiriposti.controller.SheetsController;
+import tel.kontra.leiriposti.event.PrintingCompleteEvent;
+import tel.kontra.leiriposti.event.ValueUpdateEvent;
 import tel.kontra.leiriposti.model.Message;
 import tel.kontra.leiriposti.model.MessageStatus;
 import tel.kontra.leiriposti.model.PrintersNotFoundException;
 import tel.kontra.leiriposti.model.SessionProfile;
 import tel.kontra.leiriposti.model.SheetsNotFoundException;
-import tel.kontra.leiriposti.service.GoogleAuth;
-import tel.kontra.leiriposti.service.GoogleServiceFactory;
 import tel.kontra.leiriposti.view.PrinterGui;
-import tel.kontra.leiriposti.view.SheetIdMissingGui;
-import tel.kontra.leiriposti.view.ValueUpdateEvent;
+import tel.kontra.leiriposti.event.EventBus;
 
 /**
  * MainGuiController class is responsible for managing the main GUI of the application.
@@ -127,11 +123,51 @@ public class MainGuiController {
     }
 
     @FXML
-    private void doPrint() {
+    private void doPrint(ActionEvent event) {
         LOGGER.debug("doPrint()", LOGGER);
-        // Add logic to handle printing
-        // This could involve calling methods from the PrinterController
-        // and updating the print status label accordingly
+        
+        // Disable the printing button to prevent multiple clicks
+        printingBtn.setDisable(true); // Disable the button while printing
+
+        // Check if the printer is selected
+        if (printerController.getDefaultPrintServiceName() == null) {
+            LOGGER.error("No printer selected. Please select a printer first.");
+            doErrorModal("No printer selected. Please select a printer first.", "Printer Error");
+            printingBtn.setDisable(false); // Re-enable the button if no printer is selected
+            return; // Exit the method if no printer is selected
+        }
+
+        // Check if there are queued messages to print
+        List<Message> queuedMessages = messageController.getMessages(MessageStatus.QUEUED);
+        
+        if (queuedMessages.isEmpty()) {
+            LOGGER.warn("No messages in queue to print.");
+            doErrorModal("No messages in queue to print.", "Print Error");
+            printingBtn.setDisable(false); // Re-enable the button if there are no messages to print
+            return; // Exit the method if there are no queued messages
+        }
+
+        // Start printing messages in a separate thread
+        try {
+            printerController.doPrint(printingProgressbar);
+        } catch (PrintersNotFoundException e) {
+            LOGGER.error("Error printing messages: " + e.getMessage(), e);
+            doErrorModal(e.getMessage(), "Printing Error");
+            printingBtn.setDisable(false); // Re-enable the button if there is an error
+            return; // Exit the method if there is an error
+        }
+
+        // Re-enable the printing button and change its text to "pause printing"
+        printingBtn.setOnAction(this::pausePrinting); // Change the action to pause printing method
+        printingBtn.setText("Pause Printing"); // Change button text to indicate printing is in progress
+        printingBtn.setDisable(false); // Re-enable the button after printing
+
+        // Update the print status label
+        printStatus.setText("Printing " + queuedMessages.size() + " messages...");
+    }
+
+    private void pausePrinting(ActionEvent event) {
+        LOGGER.debug("pausePrinting()", LOGGER);
     }
 
     @FXML
@@ -229,8 +265,6 @@ public class MainGuiController {
     private void initialize() {
         LOGGER.info("Initializing MainGuiController...");
 
-        // Check if the SheetsController is initialized
-
         // Only UI setup and event handler binding here
         showMessageChoice.getItems().addAll(
             MessageStatus.ALL,
@@ -240,10 +274,56 @@ public class MainGuiController {
             MessageStatus.ERROR
         );
 
-        showMessageChoice.setValue(MessageStatus.ALL);
-        showMessageChoice.setOnAction(this::onFilterChange);
-        messageList.setOnKeyPressed(this::onShiftSelection);
-        messageList.setOnMouseClicked(this::messageSelectionContextMenu);
+        /**
+         * Setup event handlers for GUI components.
+         * These handlers are triggered by user actions like button clicks or selection changes.
+         */
+        showMessageChoice.setValue(MessageStatus.ALL); // Set the default value for the filter choice box
+        showMessageChoice.setOnAction(this::onFilterChange); // Set the event handler for filter change
+        messageList.setOnKeyPressed(this::onShiftSelection); // Set the event handler for Shift key selection
+        messageList.setOnMouseClicked(this::messageSelectionContextMenu); // Set the context menu for right-click actions on messages
+        printingBtn.setOnAction(this::doPrint); // Set the action for the printing button
+
+        /**
+         * ValueUpdateEvent listeners for updating label values
+         * These listeners are triggered when the corresponding events are fired.
+         */
+
+        // Listener for updating the menubar message
+        menubarMessage.addEventHandler(ValueUpdateEvent.VALUE_UPDATE_EVENT_TYPE, event -> {
+            LOGGER.debug("Menubar message updated: " + event.getValue());
+            menubarMessage.setText(event.getValue());
+        });
+
+        // Listener for updating printingProgressbar
+        printingProgressbar.addEventHandler(ValueUpdateEvent.VALUE_UPDATE_EVENT_TYPE, event -> {
+            LOGGER.debug("Printing progress updated: " + event.getValue());
+            try {
+                double progress = Double.parseDouble(event.getValue());
+                printingProgressbar.setProgress(progress);
+            } catch (NumberFormatException ex) {
+                LOGGER.warn("Invalid value for printing progress: " + event.getValue());
+            }
+        });
+
+        // Listener for re-rendering the message list
+        messageList.addEventHandler(ValueUpdateEvent.VALUE_UPDATE_EVENT_TYPE, event -> {
+            LOGGER.debug("Re-rendering message list due to event: " + event.getValue());
+            renderMessageList(showMessageChoice.getValue()); // Re-render the message list with the current filter
+        });
+
+        // Listener for printingDone event
+        EventBus.getInstance().register(PrintingCompleteEvent.PRINTING_COMPLETE_EVENT_TYPE, event -> {
+            LOGGER.debug("Printing complete event received: " + event.getMessage());
+            
+            // Update the print status label
+            printStatus.setText("Printing complete: " + event.getMessage());
+
+            // Re-enable the printing button and change its text back to "Print"
+            printingBtn.setOnAction(this::doPrint); // Reset the action to doPrint
+            printingBtn.setText("Start printing"); // Change button text back to "Print"
+            printingBtn.setDisable(false); // Re-enable the button after printing
+        });
     }
 
     /**
@@ -251,6 +331,15 @@ public class MainGuiController {
      */
     public void postInit() {
         renderMessageList(MessageStatus.ALL);
+
+        // Start the polling thread for checking new messages
+        isPolling = true; // Set the polling flag to true
+        if (!pollThread.isAlive()) {
+            LOGGER.info("Starting polling thread for new messages.");
+            pollThread.start(); // Start the polling thread
+        } else {
+            LOGGER.warn("Polling thread is already running.");
+        }
     }
 
     /**
@@ -260,6 +349,9 @@ public class MainGuiController {
     private boolean isPolling = false; // Flag to check if the polling thread is running
     private Thread pollThread = new Thread(() -> {
         LOGGER.info("Starting polling thread for new messages...");
+
+        // Set thread name for easier debugging
+        Thread.currentThread().setName("MessagePollingThread");
 
         while (isPolling) {
             try {
@@ -271,10 +363,14 @@ public class MainGuiController {
 
                 if (newMessageCount > 0) {
                     LOGGER.info("New messages found: " + newMessageCount);
-                    onMenuBarMessageUpdate(new ValueUpdateEvent("New messages found: " + newMessageCount)); // Fire an event to update the menubar message
+                    Platform.runLater(() -> {
+                        menubarMessage.fireEvent(new ValueUpdateEvent("New messages found: " + newMessageCount));
+                    });
                 } else {
                     LOGGER.info("No new messages.");
-                    onMenuBarMessageUpdate(new ValueUpdateEvent("No new messages")); // Fire an event to update the menubar message
+                    Platform.runLater(() -> {
+                        menubarMessage.fireEvent(new ValueUpdateEvent("No new messages."));
+                    });
                 }
 
             } catch (InterruptedException e) {
@@ -289,13 +385,17 @@ public class MainGuiController {
     });
 
     /**
-     * Handles the context menu for message selection in the ListView.
-     * This method is triggered when the user right-clicks on a message in the ListView.
-     * It displays a context menu with options to delete, add to queue, or remove from queue.
-     * 
-     * @param event The mouse event that triggered this method.
+     * Stops the polling thread for new messages.
+     * This method is called when the application is closing or when the user wants to stop polling.
      */
-    private ContextMenu contextMenu = new ContextMenu(); // Context menu for message selection
+    public void stopPolling() {
+        LOGGER.info("Stopping polling thread for new messages...");
+        isPolling = false; // Set the polling flag to false to stop the thread
+        if (pollThread.isAlive()) {
+            pollThread.interrupt(); // Interrupt the thread if it is running
+            LOGGER.info("Polling thread interrupted.");
+        }
+    }
 
     /**
      * Handles the context menu for message selection in the ListView.
@@ -304,6 +404,7 @@ public class MainGuiController {
      * 
      * @param event
      */
+    private ContextMenu contextMenu = new ContextMenu(); // Context menu for message selection
     private void messageSelectionContextMenu(MouseEvent event) {
         if (event.getButton() == MouseButton.SECONDARY) { // Check if the right mouse button was clicked
             LOGGER.debug("Right-click detected on message list.");
@@ -325,7 +426,7 @@ public class MainGuiController {
                     MenuItem deleteItem = new MenuItem("Delete");
                     deleteItem.setOnAction(e -> {
                         for (Message selected : selectedItems) {
-                            selected.setStatus(MessageStatus.DELETED); // Set the status to DELETED
+                            messageController.setMessageStatus(selected, MessageStatus.DELETED); // Set the status to DELETED
                         }
                         renderMessageList(showMessageChoice.getValue());
                     });
@@ -334,7 +435,7 @@ public class MainGuiController {
                     MenuItem addToQueueItem = new MenuItem("Add to Queue");
                     addToQueueItem.setOnAction(e -> {
                         for (Message selected : selectedItems) {
-                            selected.setStatus(MessageStatus.QUEUED); // Set the status to QUEUED
+                            messageController.setMessageStatus(selected, MessageStatus.QUEUED); // Set the status to QUEUED
                         }
                         renderMessageList(showMessageChoice.getValue());
                     });
@@ -343,7 +444,7 @@ public class MainGuiController {
                     MenuItem removeFromQueueItem = new MenuItem("Remove from Queue");
                     removeFromQueueItem.setOnAction(e -> {
                         for (Message selected : selectedItems) {
-                            selected.setStatus(MessageStatus.NOT_PRINTED); // Set the status to NOT_PRINTED
+                            messageController.setMessageStatus(selected, MessageStatus.NOT_PRINTED); // Set the status to NOT_PRINTED
                         }
                         renderMessageList(showMessageChoice.getValue());
                     });
@@ -399,14 +500,5 @@ public class MainGuiController {
         for (Message message : messages) {
             messageList.getItems().add(message);
         }
-    }
-
-    /**
-     * Updates the menubar message with the new value from a ValueUpdateEvent.
-     * This method is thread-safe and can be called from any thread.
-     * @param event The ValueUpdateEvent containing the new value.
-     */
-    public void onMenuBarMessageUpdate(ValueUpdateEvent event) {
-        Platform.runLater(() -> menubarMessage.setText(event.getValue()));
     }
 }
