@@ -3,34 +3,53 @@ package tel.kontra.leiriposti.service;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 
+import com.google.api.client.auth.oauth2.Credential;
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.services.sheets.v4.Sheets;
 
-
-
+/**
+ * GoogleServiceFactory is a singleton class that provides access to Google API services.
+ * It initializes the necessary services such as Google Sheets API and provides methods
+ * to retrieve these services.
+ * 
+ * This class ensures that only one instance of the Google API services is created,
+ * which helps in managing resources efficiently and avoids multiple credential requests.
+ * 
+ * @version 1.0
+ * @since 0.2
+ */
 public class GoogleServiceFactory {
 
     private static final String APPLICATION_NAME = "Leiriposti";
     private static GoogleServiceFactory instance; // Singleton instance
     
     // Services for Google APIs
-    private Sheets  sheetsService; // Sheets
+    private Sheets sheetsService; // Sheets
 
-    private GoogleServiceFactory() throws GeneralSecurityException, IOException {
+    /**
+     * Private constructor to prevent instantiation.
+     * Initializes the Google Sheets service.
+     * 
+     * @throws GeneralSecurityException if there is a security error during initialization
+     * @throws IOException if there is an I/O error during initialization
+     */
+    private GoogleServiceFactory(Credential credentials) throws GeneralSecurityException, IOException {
 
-        // Initialize the services we need
-
-        // HTTP transport
-        // This is used to make HTTP requests to the Google APIs
+        // Initialize the HTTP transport
         NetHttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
-        
+
         // Sheets API service
         this.sheetsService = new Sheets.Builder(
-            httpTransport, GsonFactory.getDefaultInstance(), GoogleAuth.getCredentials(httpTransport))
+            httpTransport, GsonFactory.getDefaultInstance(), credentials)
                 .setApplicationName(APPLICATION_NAME)
                 .build();
+
+        /**
+        * If response is 400 invalid grant, it means the credentials are invalid or expired.
+        * In this case, we should handle the exception and prompt the user to re-authenticate.
+        */
     }
 
     /**
@@ -43,9 +62,9 @@ public class GoogleServiceFactory {
      * @throws GeneralSecurityException if there is a security error during initialization
      * @throws IOException if there is an I/O error during initialization
      */
-    public static synchronized GoogleServiceFactory getInstance() throws GeneralSecurityException, IOException {
+    public static synchronized GoogleServiceFactory getInstance(Credential credentials) throws GeneralSecurityException, IOException {
         if (instance == null) {
-            instance = new GoogleServiceFactory();
+            instance = new GoogleServiceFactory(credentials);
         }
         return instance;
     }

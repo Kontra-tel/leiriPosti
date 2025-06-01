@@ -1,12 +1,14 @@
 package tel.kontra.leiriposti.service;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.security.GeneralSecurityException;
 import java.util.Collections;
 import java.util.List;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.google.api.client.auth.oauth2.Credential;
 import com.google.api.client.extensions.java6.auth.oauth2.AuthorizationCodeInstalledApp;
@@ -33,6 +35,8 @@ import com.google.api.client.http.javanet.NetHttpTransport;
  */
 public class GoogleAuth {
 
+    private static final Logger LOGGER = LogManager.getLogger(); // Logger for debugging
+
     private static final String TOKENS_DIRECTORY_PATH = "tokens";
     private static JsonFactory JsonFactory = GsonFactory.getDefaultInstance();
 
@@ -47,7 +51,7 @@ public class GoogleAuth {
      * builds the authorization flow, and triggers the user authorization request.
      * 
      * @param HTTP_TRANSPORT
-     * @return Credential object
+     * @return Credential
      * @throws IOException
      * @throws GeneralSecurityException
      */
@@ -56,9 +60,11 @@ public class GoogleAuth {
         
         InputStream in = GoogleAuth.class.getResourceAsStream("/credentials.json");
 
-        // Throw error if credentials missing
+        // Exit if the credentials file is not found
+        // This file should be in the resources directory of the project
         if (in == null) {
-            throw new FileNotFoundException("Resource not found: credentials.json");
+            LOGGER.error("Credentials file not found. Please ensure credentials.json is in the resources directory.");
+            System.exit(1);
         }
 
         // Load client secrets from the credentials file
