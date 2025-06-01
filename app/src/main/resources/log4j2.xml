@@ -14,7 +14,7 @@
             <AppenderRef ref="Console" />
         </Root>
         <!-- Example Logger for your package -->
-        <Logger name="tel.kontra.leiriposti" level="debug" additivity="false">
+        <Logger name="tel.kontra.leiriposti" additivity="false">
             <AppenderRef ref="Console" />
         </Logger>
     </Loggers>
