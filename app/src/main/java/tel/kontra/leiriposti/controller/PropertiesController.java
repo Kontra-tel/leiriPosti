@@ -14,6 +14,9 @@ import java.util.Properties;
  * The class provides a method to get the value of a property by its key.
  * 
  * This class is thread-safe and uses the Singleton pattern to ensure a single instance.
+ * 
+ * @version 1.0
+ * @since 0.1
  */
 public class PropertiesController {
 

@@ -25,7 +25,7 @@ import tel.kontra.leiriposti.util.WeekDayImage;
  * Most of the layout is hardcoded meaning I would have to change the source code to change the layout.
  * But this works for now and there is a high chance that it will remain the same.
  * 
- * @version 0.1
+ * @version 0.2
  * @since 0.1
  * 
  * @author Markus
@@ -147,5 +147,9 @@ public class PrintableMessage implements Printable {
         }
 
         return PAGE_EXISTS;
+    }
+
+    public String getTitle() {
+        return printData.getSubject(); // Return the subject of the message as the title
     }
 }
