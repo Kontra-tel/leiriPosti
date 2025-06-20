@@ -83,6 +83,9 @@ public class MainGui extends Application {
             ? SheetsController.getInstance(lastRow)
             : SheetsController.getInstance();
 
+        // Add sheetsService to the SheetsController
+        sheetsController.initialize(sheetsService);
+
         // If spreadsheetId is missing, open the GUI for setting it up
         if (session.getSpreadsheetId() == null || session.getSpreadsheetId().isEmpty()) {
             LOGGER.warn("Spreadsheet ID is missing. Opening setup dialog.");
