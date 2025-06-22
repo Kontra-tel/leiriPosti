@@ -50,6 +50,7 @@ public class SessionProfile implements Serializable {
     private Queue<Message> printQueue; // Queue of messages to be printed in this session
     private List<Message> importedMessages; // All messages imported in this session
     private boolean isDefault; // Flag to indicate if this is the default session profile
+    private boolean printDuplex; // Flag to indicate if duplex printing is enabled
 
     /**
      * Google Sheets service data.

@@ -13,7 +13,9 @@ import javax.print.SimpleDoc;
 import javax.print.attribute.Attribute;
 import javax.print.attribute.HashPrintRequestAttributeSet;
 import javax.print.attribute.PrintRequestAttributeSet;
+import javax.print.attribute.standard.ColorSupported;
 import javax.print.attribute.standard.Copies;
+import javax.print.attribute.standard.PrinterState;
 import javax.print.attribute.standard.Sides;
 
 import org.apache.logging.log4j.Logger;
@@ -288,7 +290,7 @@ public class PrinterController {
             PrintRequestAttributeSet pras = getPras(defaultPrintService); // Get the PrintRequestAttributeSet for the print service
             PrintableMessage printableMessage = new PrintableMessage(message); // Create a PrintableMessage from the message
 
-            PrintJobWatcher watcher = new PrintJobWatcher(printJob); // Create a PrintJobWatcher to monitor the print job
+            PrintJobWatcher watcher = new PrintJobWatcher(defaultPrintService); // Create a PrintJobWatcher to monitor the print job
             
             try {
                 printJob.print(new SimpleDoc(printableMessage, DocFlavor.SERVICE_FORMATTED.PRINTABLE, null), pras); // Send the printable message to the printer
@@ -336,13 +338,45 @@ public class PrinterController {
      */
     private PrintRequestAttributeSet getPras(PrintService printService) {
         PrintRequestAttributeSet pras = new HashPrintRequestAttributeSet(); // Create a new PrintRequestAttributeSet
-        pras.add(new Copies(1)); // Set the number of copies to 1
-        pras.add(Sides.ONE_SIDED); // Set the print side to one-sided
+
+        // pras.add(new Copies(1)); // Set the number of copies to 1
+        LOGGER.debug("Setting print service attributes for: " + printService.getName()); // Log the print service name
 
         // Check if the print service supports duplex printing
-        if (printService.getAttributes().containsValue(Sides.DUPLEX)) {
-            pras.add(Sides.DUPLEX); // Add duplex printing if supported
+        boolean supportsDuplex = false;
+        Object supportedSides = printService.getSupportedAttributeValues(Sides.class, null, null);
+        if (supportedSides instanceof Sides[]) {
+            for (Sides side : (Sides[]) supportedSides) {
+                if (side == Sides.DUPLEX) {
+                    supportsDuplex = true;
+                    break;
+                }
+            }
         }
+        
+        // Override the duplex support based on the session profile
+        // If the session profile does not allow duplex printing, set supportsDuplex to false
+        if(! SessionProfileController.getInstance().getSessionProfile().isPrintDuplex() ) {
+            supportsDuplex = false; // Force duplex support to false if the session profile does not allow duplex printing
+        }
+
+        // Add the appropriate print side based on duplex support
+        if (supportsDuplex) {
+            pras.add(Sides.DUPLEX); // Add duplex printing if supported
+        } else {
+            LOGGER.warn("Print service does not support duplex printing, using one-sided printing instead."); // Log a warning if duplex is not supported
+            
+            // If duplex is not supported, we will print one-sided (two papers)
+            pras.add(Sides.ONE_SIDED); // Add one-sided printing
+        }
+
+        // Set the number of copies to 1
+        // This is a default setting, can be overridden by user input
+        pras.add(new Copies(1)); // Set the number of copies to 1
+
+        // Set print to be black and white
+        // pras.add(ColorSupported.NOT_SUPPORTED); // Set color support to not supported (black and white)
+
         return pras; // Return the PrintRequestAttributeSet
     }
 
@@ -361,6 +395,51 @@ public class PrinterController {
             LOGGER.debug("Removed message from print queue: " + message.getSubject()); // Log the removal of the message
         } else {
             LOGGER.warn("Message not found in print queue: " + message.getSubject()); // Log if the message is not found in the queue
+        }
+    }
+
+    /**
+     * Get the state of the printer.
+     * 
+     * This method retrieves the current state of the default print service.
+     * It returns a string representation of the printer state.
+     * 
+     * @return The state of the printer as a string, or a message if no default print service is set.
+     */
+    public String getPrinterState() {
+        if (defaultPrintService == null) {
+            return "No default print service set"; // Return message if no default print service is set
+        }
+
+        // Get the printer state from the default print service
+        PrinterState printerState =
+                (PrinterState) defaultPrintService.getAttribute(PrinterState.class);
+
+        if (printerState != null) {
+            return printerState.toString(); // Return the printer state as a string
+        } else {
+            return "Printer state not available"; // Return message if printer state is not available
+        }
+    }
+
+    /**
+     * Pause the printing process.
+     * 
+     * This method pauses the printing process by setting the isPaused flag to true.
+     * It also logs the current print queue and its size.
+     */
+    public void pausePrinting() {
+        isPaused = true; // Set the isPaused flag to true to pause printing
+        LOGGER.info("Printing paused."); // Log that printing has been paused
+
+        // Print information about the current print queue
+        if (printQueue != null) {
+            LOGGER.info("Current print queue size: " + printQueue.size()); // Log the size of the print queue
+            for (Message message : printQueue) {
+                LOGGER.info(" - " + message.getSubject() + " (Status: " + message.getStatus() + ")"); // Log each message in the print queue
+            }
+        } else {
+            LOGGER.info("Print queue is empty."); // Log if the print queue is empty
         }
     }
 }

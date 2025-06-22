@@ -6,7 +6,12 @@ import java.time.DayOfWeek;
 
 import javax.imageio.ImageIO;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 public class WeekDayImage {
+
+    private static final Logger LOGGER = LogManager.getLogger();
 
     /**
      * Constructor for WeekDayImage class.
@@ -28,17 +33,22 @@ public class WeekDayImage {
      */
     public static Image getImage(DayOfWeek day) {
         String imagePath = "./week/" + day.getValue() + ".png"; // Construct the image path based on the day of the week
-        
-        System.out.println(imagePath);
 
         try {
             Image image = ImageIO.read(
                 WeekDayImage.class.getClassLoader().getResource(imagePath)); // Load the image from the file
 
+            if (image == null) {
+                LOGGER.error("Image not found for day {}: {}", day, imagePath);
+                return null; // Return null if the image could not be found
+            } else {
+                LOGGER.debug("Image loaded for day {}: {}", day, imagePath);
+            }
+
             return image; // Return the loaded image
 
         } catch (IOException e) {
-            System.err.println("Error loading image: " + e.getMessage());
+            LOGGER.error("Error loading image for day {}: {}", day, e.getMessage());
             e.printStackTrace();
 
             return null; // Return null if the image could not be loaded

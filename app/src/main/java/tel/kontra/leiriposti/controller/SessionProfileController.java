@@ -53,6 +53,7 @@ public class SessionProfileController {
                 .printQueue(new LinkedList<>())
                 .spreadsheetId(null)
                 .isDefault(true) // Mark this as the default session profile
+                .printDuplex(false) // Default duplex printing setting
                 .build();
             sessionProfiles.add(sessionProfile); // Add the default session profile to the list
         }

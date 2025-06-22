@@ -12,6 +12,8 @@ import java.awt.print.PrinterException;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
+import java.time.DayOfWeek;
+import java.util.Calendar;
 
 import javax.print.Doc;
 import javax.print.SimpleDoc;
@@ -75,11 +77,18 @@ public class PrintableMessage implements Printable {
             g2d.drawString(title, 50, 50); // Draw the title at the top-left corner
 
             // Image
-            Image image = WeekDayImage.getImage(printData.getWeekDay()); // Load the image from the resources folder
+            // Get image corresponding to current week day
+            Calendar calendar = Calendar.getInstance();
+            int dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
+            Image image = WeekDayImage.getImage(DayOfWeek.of(dayOfWeek));
 
-            // Image dimensions
+            // Make image black and white
+            if (image == null) {
+                throw new PrinterException("Image for the current day of the week is not available.");
+            }
+
             int imageWidth = 100;
-            int imageHeight = 100;
+            int imageHeight = image.getHeight(null) * imageWidth / image.getWidth(null);
 
             // Draw the image at the top-right corner of the page
             g2d.drawImage(image, (int) pf.getImageableWidth() - imageWidth - 20, 20, imageWidth, imageHeight, null);

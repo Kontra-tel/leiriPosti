@@ -8,6 +8,8 @@ import java.util.Date;
 import java.util.TimeZone;
 
 import lombok.Data;
+import tel.kontra.leiriposti.event.EventBus;
+import tel.kontra.leiriposti.event.ValueUpdateEvent;
 
 /**
  * Message class represents a message with sender, recipient, subject, and body.
@@ -89,6 +91,9 @@ public class Message implements Serializable {
      */
     public void setStatus(MessageStatus status) {
         this.status = status;
+
+        // Notify listeners about the status change
+        EventBus.getInstance().post(new ValueUpdateEvent(this.toString()));
     }
 
     @Override
