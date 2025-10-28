@@ -168,6 +168,19 @@ public class MainGuiController {
 
     private void pausePrinting(ActionEvent event) {
         LOGGER.debug("pausePrinting()", LOGGER);
+
+        // Disable the printing button to prevent multiple clicks
+        printingBtn.setDisable(true); // Disable the button while pausing printing
+
+        // Pause the printing process
+        try {
+            printerController.pausePrinting();
+        } catch (Exception e) {
+            LOGGER.error("Error pausing printing: " + e.getMessage(), e);
+            doErrorModal(e.getMessage(), "Pause Printing Error");
+            printingBtn.setDisable(false); // Re-enable the button if there is an error
+            return; // Exit the method if there is an error
+        }
     }
 
     @FXML
